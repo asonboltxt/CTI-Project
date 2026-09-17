@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block title %}CTI Result{% endblock %}
+{% block content %}
+<section class="page-heading result-heading">
+  <div><p class="eyebrow">CALCULATION COMPLETE</p><h1>{{ data.title or 'CTI Result' }}</h1><p>{{ data.program }}{% if data.driver %} · {{ data.driver }}{% endif %}</p></div>
+  <div class="button-row"><a class="button button-secondary" href="{{ url_for('main.new_cti') }}">Add another</a><a class="button button-primary" href="/dashboard">Open dashboard</a></div>
+</section>
+
+<section class="metric-grid">
+  <article class="metric-card"><span>Qualification</span><strong>{{ qualification.code }}</strong><small>{{ qualification.label if qualification.label is defined else '' }}</small></article>
+  <article class="metric-card"><span>Priority tier</span><strong>{{ tier }}</strong></article>
+  <article class="metric-card"><span>Objective score</span><strong>{{ '%.1f'|format(scoring.ops|float) }}</strong></article>
+  <article class="metric-card"><span>Confidence</span><strong>{{ confidence.score if confidence.score is defined else confidence }}</strong></article>
+</section>
+
+<div class="content-grid">
+  <section class="panel">
+    <h2>Why this result</h2>
+    {% if qualification.reasons is defined and qualification.reasons %}<ul class="clean-list">{% for reason in qualification.reasons %}<li>{{ reason }}</li>{% endfor %}</ul>{% else %}<p>The result was calculated from the submitted objective inputs.</p>{% endif %}
+  </section>
+  <section class="panel">
+    <h2>Schedule</h2>
+    <dl class="detail-list"><div><dt>Need by</dt><dd>{{ data.need_by or 'Not provided' }}</dd></div><div><dt>Target date</dt><dd>{{ data.target_date or 'Not provided' }}</dd></div><div><dt>Engineering hours</dt><dd>{{ data.engineering_hours }}</dd></div></dl>
+  </section>
+</div>
+
+<section class="panel">
+  <h2>Business case</h2><p class="pre-line">{{ data.business_case or 'No business case provided.' }}</p>
+  <h2>Problem statement</h2><p class="pre-line">{{ data.problem_statement or 'No problem statement provided.' }}</p>
+</section>
+
+<section class="panel">
+  <h2>Objective score breakdown</h2>
+  <div class="json-grid">
+    {% for factor in scoring.factors.values() %}
+    <div>
+      <span>{{ factor.label }}</span>
+      <strong>{{ '%.1f'|format(factor.score|float) }}</strong>
+      <small>{{ (factor.weight * 100)|round(0)|int }}% weight · {{ '%.1f'|format(factor.contribution|float) }} contribution</small>
+    </div>
+    {% endfor %}
+  </div>
+</section>
+
+{% if extraction and extraction.warnings %}<section class="alert alert-warning"><strong>Extraction warnings retained with the record</strong><ul>{% for warning in extraction.warnings %}<li>{{ warning }}</li>{% endfor %}</ul></section>{% endif %}
+<p class="muted">Saved record ID: {{ project_id }}</p>
+{% endblock %}

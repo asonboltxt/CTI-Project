@@ -1,0 +1,126 @@
+{% extends "base.html" %}
+
+{% block title %}Resources{% endblock %}
+
+{% block content %}
+<section class="page-heading">
+    <div>
+        <p class="eyebrow">RESOURCE PARTICIPATION</p>
+        <h1>Departments and Ranked CTIs</h1>
+        <p>Select a department to view every active CTI that requires that function.</p>
+    </div>
+
+    {% if selected_department %}
+    <a class="button button-secondary" href="{{ url_for('phase2.resources') }}">
+        Clear department filter
+    </a>
+    {% endif %}
+</section>
+
+<section class="program-card-grid" aria-label="Departments">
+    {% for department in departments %}
+    <a
+        class="program-card{% if selected_department == department.department %} is-active{% endif %}"
+        href="{{ url_for('phase2.resources', department=department.department) }}"
+    >
+        <span class="program-card-label">Department</span>
+        <strong>{{ department.department }}</strong>
+        <small>{{ department.ctis }} CTI{% if department.ctis != 1 %}s{% endif %}</small>
+        <span class="program-card-action">View ranked list →</span>
+    </a>
+    {% else %}
+    <article class="panel program-empty-state">
+        <h2>No resource participation stored yet</h2>
+        <p>Create or review a CTI and select its participating departments.</p>
+    </article>
+    {% endfor %}
+</section>
+
+{% if departments %}
+<section class="panel portfolio-filter-panel">
+    <form method="get" action="{{ url_for('phase2.resources') }}" class="portfolio-filter-form">
+        <label class="field">
+            <span>Filter ranked list by department</span>
+            <select name="department" onchange="this.form.submit()">
+                <option value="">All departments</option>
+                {% for department in departments %}
+                <option value="{{ department.department }}"{% if selected_department == department.department %} selected{% endif %}>
+                    {{ department.department }} ({{ department.ctis }})
+                </option>
+                {% endfor %}
+            </select>
+        </label>
+
+        <noscript>
+            <button class="button button-primary" type="submit">Apply filter</button>
+        </noscript>
+    </form>
+</section>
+{% endif %}
+
+<section class="panel table-panel">
+    <div class="table-toolbar">
+        <div>
+            <p class="eyebrow">RANKED PORTFOLIO</p>
+            <h2>
+                {% if selected_department %}
+                    CTIs involving {{ selected_department }}
+                {% else %}
+                    All CTIs with resource participation
+                {% endif %}
+            </h2>
+            <p>{{ projects|length }} active CTI{% if projects|length != 1 %}s{% endif %}</p>
+        </div>
+    </div>
+
+    <div class="table-wrap">
+        <table class="portfolio-table">
+            <thead>
+                <tr>
+                    <th>Rank</th>
+                    <th>Tier</th>
+                    <th>Program</th>
+                    <th>Title</th>
+                    <th>OPS</th>
+                    <th>Confidence</th>
+                    <th>Need By</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for project in projects %}
+                <tr>
+                    <td><span class="rank-badge">{{ loop.index }}</span></td>
+                    <td>
+                        <span class="tier tier-{{ project.qualification|default('d', true)|lower|replace(' ', '-') }}">
+                            {{ project.qualification|default('D', true) }}
+                        </span>
+                    </td>
+                    <td>{{ project.program|default('Unassigned', true) }}</td>
+                    <td>
+                        <strong>{{ project.title|default('Untitled CTI', true) }}</strong>
+                        <small>{{ project.driver|default('', true) }}</small>
+                    </td>
+                    <td>{{ project.ops if project.ops is not none else '—' }}</td>
+                    <td>{{ project.confidence if project.confidence is not none else '—' }}</td>
+                    <td>{{ project.need_by|default('Missing', true) }}</td>
+                    <td>
+                        <a class="table-link" href="{{ url_for('phase2.project', project_id=project.id) }}">View</a>
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td class="empty-state" colspan="8">
+                        {% if selected_department %}
+                            No active CTIs involve this department.
+                        {% else %}
+                            No CTIs have resource participation stored yet.
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+{% endblock %}

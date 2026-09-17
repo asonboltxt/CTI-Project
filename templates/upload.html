@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}Upload CTI Proposal{% endblock %}
+{% block content %}
+<section class="page-heading">
+  <div><p class="eyebrow">DOCUMENT INTAKE</p><h1>Upload a proposal</h1><p>Import a DOCX or PDF, review the extracted values, then calculate and save the CTI.</p></div>
+  <a class="button button-secondary" href="/dashboard">Back to dashboard</a>
+</section>
+
+<section class="upload-panel">
+  <form method="post" enctype="multipart/form-data" class="upload-form">
+    <label class="drop-zone">
+      <strong>Select a proposal file</strong>
+      <span>Supported formats: DOCX and PDF</span>
+      <input type="file" name="proposal" accept=".docx,.pdf" required onchange="document.getElementById('selected-file').textContent=this.files[0]?.name || 'No file selected'">
+      <em id="selected-file">No file selected</em>
+    </label>
+    <button class="button button-primary" type="submit">Upload and review</button>
+  </form>
+</section>
+
+<section class="help-grid">
+  <article><strong>1. Upload</strong><p>The original proposal is retained in the uploads folder.</p></article>
+  <article><strong>2. Review</strong><p>Correct extracted values and acknowledge warnings.</p></article>
+  <article><strong>3. Save</strong><p>The result is stored as a new portfolio record.</p></article>
+</section>
+{% endblock %}

@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% from "fields.html" import text_field, yes_no %}
+{% block title %}CTI intake{% endblock %}
+{% block content %}
+<section class="page-heading">
+  <div><p class="eyebrow">GUIDED INTAKE</p><h1>CTI intake</h1><p>Complete each step, or save this draft and resume it later.</p>{% if draft.source_file %}<p class="muted">Imported from {{ draft.source_file }}{% if draft.template_version %} ({{ draft.template_version }}){% endif %}</p>{% endif %}</div>
+  <a class="button button-secondary" href="{{ url_for('phase2.dashboard') }}">Cancel</a>
+</section>
+<nav class="wizard-steps" aria-label="CTI intake steps">
+{% for number in steps %}
+  <span class="{% if number == step %}active{% endif %}">Step {{ number }}</span>
+{% endfor %}
+</nav>
+{% if errors %}
+<section class="alert alert-error error-summary"><strong>Review the highlighted fields.</strong><ul>{% for message in errors.values() %}<li>{{ message }}</li>{% endfor %}</ul></section>
+{% endif %}
+{% if draft.warnings %}
+<section class="alert alert-warning"><strong>Parser warnings</strong><ul>{% for warning in draft.warnings %}<li>{{ warning }}</li>{% endfor %}</ul><p>Review the affected fields before calculating.</p></section>
+{% endif %}
+{% if extraction.review %}
+<section class="alert alert-warning">
+  <strong>Extraction review</strong>
+  <p>
+    {% if extraction.review.conflicts %}Conflicting: {{ extraction.review.conflicts|join(', ') }}. {% endif %}
+    {% if extraction.review.inferred %}Inferred: {{ extraction.review.inferred|join(', ') }}. {% endif %}
+    {% if extraction.review.missing %}Missing: {{ extraction.review.missing|join(', ') }}.{% endif %}
+  </p>
+</section>
+{% endif %}
+{% if extraction.classification %}
+<section class="alert alert-info">
+  <strong>Calculated CTI category: {{ extraction.classification }}</strong>
+  <p>Classification is determined from the extracted evidence and existing qualification rules.</p>
+</section>
+{% endif %}
+<form method="post" class="stack-form">
+<section class="panel">
+  <div class="section-heading"><span>{{ step }}</span><div><h2>
+    {% if step == 1 %}Identity and problem{% elif step == 2 %}Schedule and scope{% elif step == 3 %}Impact and qualification{% else %}Readiness and review{% endif %}
+  </h2></div></div>
+  <div class="form-grid">
+  {% for name in steps[step] %}
+    {% set value = data.get(name, '') %}
+    {% if name in ['problem_statement', 'scope_change', 'business_case'] %}
+      <label class="field full{% if name in errors %} invalid{% endif %}"><span>{{ name|replace('_',' ')|title }}</span><textarea name="{{ name }}" rows="5">{{ value }}</textarea>{% if name in errors %}<small class="field-error">{{ errors[name] }}</small>{% endif %}</label>
+    {% elif name in ['regulatory','certification','external_commitment','slt_mandate','delivery_prevention','critical_obsolescence','major_supply_disruption','unit_specific','fast_engineering','non_ecr','cross_functional','customer_commitment','ready_owner','ready_scope','ready_business_case','ready_estimate','ready_functions','ready_dates','ready_approach','ready_funding','ready_milestones','ready_evidence'] %}
+      {{ yes_no(name, name|replace('_',' ')|title, value) }}
+    {% elif name == 'departments' %}
+      <label class="field"><span>Departments</span><select name="departments" multiple size="12">{% for department in ['Structures','AES','Avionics','Electrical Systems','Software','Interiors','Materials & Processes','Reliability','Quality','Certification','Customer Service Engineering','Program Management','Manufacturing Engineering','Industrial Engineering','Supply Chain','Procurement','Configuration Management','Technical Publications','Test Engineering','Flight Test','Safety','Production Support','Tooling'] %}<option{% if department in value %} selected{% endif %}>{{ department }}</option>{% endfor %}</select><small>Hold CTRL while clicking to select multiple departments.</small></label>
+    {% else %}
+      {{ text_field(name, name|replace('_',' ')|title, value, 'date' if name in date_fields else 'number' if name in numeric_fields else 'text', '0.1' if name in ['cos_score','affected_fleet_pct','five_year_npv'] else '1' if name in numeric_fields else none) }}
+      {% if name in errors %}<small class="field-error">{{ errors[name] }}</small>{% endif %}
+      {% set provenance = extraction.fields.get(name) if extraction and extraction.fields else none %}
+      {% if provenance %}<small class="field-provenance">{{ provenance.status|title }}{% if provenance.location %} · {{ provenance.location }}{% endif %} · {{ provenance.confidence }}% confidence</small>{% endif %}
+    {% endif %}
+  {% endfor %}
+  </div>
+</section>
+<div class="sticky-actions">
+  {% if step > 1 %}<a class="button button-secondary" href="{{ url_for('main.cti_step', token=draft.token, step=step-1) }}">Back</a>{% endif %}
+  <button class="button button-secondary" formaction="{{ url_for('main.cti_save', token=draft.token) }}">Save draft</button>
+  <button class="button button-primary" type="submit">{% if step == 4 %}Calculate and save{% else %}Next{% endif %}</button>
+</div>
+</form>
+{% endblock %}

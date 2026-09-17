@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+
+{% block title %}{{ department }}{% endblock %}
+
+{% block content %}
+<section class="page-heading">
+    <div>
+        <p class="eyebrow">DEPARTMENT DETAIL</p>
+        <h1>{{ department }}</h1>
+        <p>All active CTIs involving this department or function.</p>
+    </div>
+    <a class="button button-secondary" href="{{ url_for('phase2.resources') }}">Back to resources</a>
+</section>
+
+<section class="panel table-panel">
+    <div class="table-toolbar">
+        <div>
+            <p class="eyebrow">RANKED RESULTS</p>
+            <h2>CTIs involving {{ department }}</h2>
+            <p>{{ projects|length }} active CTI{% if projects|length != 1 %}s{% endif %}</p>
+        </div>
+    </div>
+
+    <div class="table-wrap">
+        <table class="portfolio-table">
+            <thead>
+                <tr>
+                    <th>Rank</th>
+                    <th>Tier</th>
+                    <th>Program</th>
+                    <th>Title</th>
+                    <th>OPS</th>
+                    <th>Confidence</th>
+                    <th>Need By</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for project in projects %}
+                <tr>
+                    <td><span class="rank-badge">{{ loop.index }}</span></td>
+                    <td>
+                        <span class="tier tier-{{ project.qualification|default('d', true)|lower|replace(' ', '-') }}">
+                            {{ project.qualification|default('D', true) }}
+                        </span>
+                    </td>
+                    <td>{{ project.program|default('Unassigned', true) }}</td>
+                    <td>
+                        <strong>{{ project.title|default('Untitled CTI', true) }}</strong>
+                        <small>{{ project.driver|default('', true) }}</small>
+                    </td>
+                    <td>{{ project.ops if project.ops is not none else '—' }}</td>
+                    <td>{{ project.confidence if project.confidence is not none else '—' }}</td>
+                    <td>{{ project.need_by|default('Missing', true) }}</td>
+                    <td>
+                        <a class="table-link" href="{{ url_for('phase2.project', project_id=project.id) }}">View</a>
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td class="empty-state" colspan="8">No active CTIs involve this department.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+{% endblock %}

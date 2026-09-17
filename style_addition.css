@@ -1,0 +1,1 @@
+.trace-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.trace-grid div{background:#f6f8fa;border:1px solid #d8dde1;border-radius:5px;padding:10px}.trace-grid b,.trace-grid span,.trace-grid small{display:block}.trace-grid span{margin:5px 0}.trace-grid small{color:#68747c}@media(max-width:800px){.trace-grid{grid-template-columns:1fr}}

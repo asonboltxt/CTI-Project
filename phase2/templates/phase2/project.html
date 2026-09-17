@@ -1,0 +1,282 @@
+{% extends "base.html" %}
+
+{% block title %}{{ project.title|default('CTI Record', true) }}{% endblock %}
+
+{% block content %}
+{% set confidence = project.confidence|default(project.confidence_score|default('', true), true) %}
+{% set scoring = project.scoring|default({}, true) %}
+{% set factors = scoring.get('factors', {}) if scoring is mapping else {} %}
+
+<section class="page-heading">
+  <div>
+    <p class="eyebrow">CTI RECORD #{{ project.id|default('') }}</p>
+    <h1>{{ project.title|default('Untitled CTI', true) }}</h1>
+    <p>
+      {{ project.program|default('', true) }}
+      {% if project.driver|default('', true) %}
+        · {{ project.driver }}
+      {% endif %}
+    </p>
+    <div class="button-row" style="margin-top: 14px;">
+      <span class="status-pill primary">{{ project.qualification|default(project.qualification_code|default('Not available', true), true) }}</span>
+      {% if project.need_by|default('', true) %}
+        <span class="status-pill warning">Need by {{ project.need_by }}</span>
+      {% endif %}
+      <span class="status-pill">{{ lifecycle_phase_labels.get(project.lifecycle_phase, project.lifecycle_phase or 'Phase 1') }}</span>
+      <span class="status-pill">{{ project.status|default('Active', true) }}</span>
+    </div>
+  </div>
+
+  <div class="button-row">
+    <a class="button button-secondary" href="{{ url_for('phase2.dashboard') }}">
+      Back to dashboard
+    </a>
+
+    {% if project.source_file|default('', true) %}
+      <a
+        class="button button-primary"
+        href="{{ url_for('main.uploaded_file', filename=project.source_file) }}"
+      >
+        Open proposal
+      </a>
+    {% endif %}
+  </div>
+</section>
+
+<section class="metric-grid">
+  <article class="metric-card">
+    <span>Qualification</span>
+    <strong>{{ project.qualification|default(project.qualification_code|default('Not available', true), true) }}</strong>
+  </article>
+
+  <article class="metric-card">
+    <span>Objective score</span>
+    <strong>{{ project.ops|default(project.score|default('Not available', true), true) }}</strong>
+  </article>
+
+  <article class="metric-card">
+    <span>Confidence</span>
+    <strong>
+      {% if confidence is mapping %}
+        {{ confidence.get('score', 'Not available') }}{% if confidence.get('score') is not none %}%{% endif %}
+      {% elif confidence != '' and confidence is not none %}
+        {{ confidence }}%
+      {% else %}
+        Not available
+      {% endif %}
+    </strong>
+
+    {% if confidence is mapping and confidence.get('missing', []) %}
+      <small>{{ confidence.get('missing', [])|length }} missing item(s)</small>
+    {% endif %}
+  </article>
+
+  <article class="metric-card">
+    <span>Need by</span>
+    <strong class="date-value">{{ project.need_by|default('Not provided', true) }}</strong>
+  </article>
+</section>
+
+<nav class="record-tabs" aria-label="Record sections">
+  <a href="#overview">Overview</a>
+  <a href="#business">Business case</a>
+  <a href="#scoring">Scoring</a>
+  <a href="#evidence">Evidence</a>
+  <a href="#document">Document</a>
+</nav>
+
+<section id="overview" class="panel">
+  <h2>Overview</h2>
+
+  <dl class="detail-list">
+    <div>
+      <dt>Owner</dt>
+      <dd>{{ project.owner|default('Not provided', true) }}</dd>
+    </div>
+    <div>
+      <dt>Lifecycle phase</dt>
+      <dd>{{ lifecycle_phase_labels.get(project.lifecycle_phase, project.lifecycle_phase or 'Phase 1') }}</dd>
+    </div>
+    <div>
+      <dt>Status</dt>
+      <dd>{{ project.status|default('Active', true) }}</dd>
+    </div>
+    <div>
+      <dt>Target date</dt>
+      <dd>{{ project.target_date|default('Not provided', true) }}</dd>
+    </div>
+    <div>
+      <dt>Engineering hours</dt>
+      <dd>{{ project.engineering_hours|default('Not provided', true) }}</dd>
+    </div>
+  </dl>
+
+  <h3>Problem statement</h3>
+  <p class="pre-line">{{ project.problem_statement|default('Not provided', true) }}</p>
+  <h3>Scope change</h3>
+  <p class="pre-line">{{ project.scope_change|default('Not provided', true) }}</p>
+</section>
+
+<section class="panel">
+  <h2>Update lifecycle phase</h2>
+  <form method="post" action="{{ url_for('phase2.update_project_lifecycle_phase', project_id=project.id) }}" class="inline-form">
+    <label class="field">
+      <span>Phase</span>
+      <select name="lifecycle_phase">
+        {% for key, label in lifecycle_phase_labels.items() %}
+        <option value="{{ key }}"{% if project.lifecycle_phase == key %} selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <button class="button button-primary" type="submit">Save phase</button>
+  </form>
+</section>
+
+<section id="business" class="panel">
+  <h2>Business case</h2>
+  <p class="pre-line">{{ project.business_case|default('Not provided', true) }}</p>
+</section>
+
+<section id="scoring" class="panel">
+  <h2>Scoring and qualification</h2>
+
+  {% if factors %}
+    <div class="json-grid">
+      {% for factor_key, factor in factors.items() %}
+        <article class="score-card">
+          <span>
+            {% if factor is mapping %}
+              {{ factor.get('label', factor_key|replace('_', ' ')|title) }}
+            {% else %}
+              {{ factor_key|replace('_', ' ')|title }}
+            {% endif %}
+          </span>
+
+          <strong>
+            {% if factor is mapping %}
+              {{ factor.get('score', 'Not available') }}
+            {% else %}
+              {{ factor }}
+            {% endif %}
+          </strong>
+
+          {% if factor is mapping and factor.get('weight') is not none %}
+            <small>Weight: {{ factor.get('weight') }}</small>
+          {% endif %}
+
+          {% if factor is mapping and factor.get('contribution') is not none %}
+            <small>Contribution: {{ factor.get('contribution') }}</small>
+          {% endif %}
+
+          {% if factor is mapping and factor.get('details', []) %}
+            <ul class="clean-list">
+              {% for detail in factor.get('details', []) %}
+                <li>{{ detail }}</li>
+              {% endfor %}
+            </ul>
+          {% endif %}
+        </article>
+      {% endfor %}
+    </div>
+
+  {% elif scoring is mapping and scoring %}
+    <div class="json-grid">
+      {% for key, value in scoring.items() %}
+        {% if key != 'factors' %}
+          <article class="score-card">
+            <span>{{ key|replace('_', ' ')|title }}</span>
+            <strong>
+              {% if value is mapping %}
+                {{ value.get('score', 'Not available') }}
+              {% else %}
+                {{ value }}
+              {% endif %}
+            </strong>
+          </article>
+        {% endif %}
+      {% endfor %}
+    </div>
+
+  {% else %}
+    <p>No scoring detail is available for this record.</p>
+  {% endif %}
+</section>
+
+<section id="evidence" class="panel">
+  <h2>Evidence and readiness</h2>
+
+  <dl class="detail-list">
+    <div>
+      <dt>Evidence count</dt>
+      <dd>{{ project.evidence_count|default('Not provided', true) }}</dd>
+    </div>
+    <div>
+      <dt>Milestone count</dt>
+      <dd>{{ project.milestone_count|default('Not provided', true) }}</dd>
+    </div>
+    <div>
+      <dt>Functions involved</dt>
+      <dd>{{ project.functions_involved|default('Not provided', true) }}</dd>
+    </div>
+  </dl>
+
+  {% if confidence is mapping and confidence.get('missing', []) %}
+    <h3>Missing confidence inputs</h3>
+    <ul class="clean-list">
+      {% for item in confidence.get('missing', []) %}
+        <li>{{ item }}</li>
+      {% endfor %}
+    </ul>
+  {% endif %}
+
+  {% if confidence is mapping and confidence.get('warnings', []) %}
+    <h3>Confidence warnings</h3>
+    <ul class="clean-list">
+      {% for warning in confidence.get('warnings', []) %}
+        <li>{{ warning }}</li>
+      {% endfor %}
+    </ul>
+  {% endif %}
+</section>
+
+<section id="document" class="panel">
+  <h2>Original proposal</h2>
+
+  {% if project.source_file|default('', true) %}
+    <p>
+      <a
+        class="button button-secondary"
+        href="{{ url_for('main.uploaded_file', filename=project.source_file) }}"
+      >
+        Open {{ project.original_file_name|default(project.source_file, true) }}
+      </a>
+    </p>
+  {% else %}
+    <p>No original proposal is linked to this record.</p>
+  {% endif %}
+
+  {% if project.extraction and project.extraction.fields %}
+    <h3>Extraction provenance</h3>
+    <ul class="clean-list">
+      {% for field, metadata in project.extraction.fields.items() if metadata.status in ['inferred', 'conflict', 'missing'] %}
+        <li><strong>{{ field|replace('_', ' ')|title }}</strong>: {{ metadata.status|title }}{% if metadata.location %} ({{ metadata.location }}){% endif %} — {{ metadata.confidence }}% confidence</li>
+      {% endfor %}
+    </ul>
+  {% endif %}
+</section>
+
+<section class="panel danger-zone">
+  <h2>Record actions</h2>
+  <p>Deleting this record cannot be undone.</p>
+
+  <form
+    method="post"
+    action="{{ url_for('phase2.delete_record', project_id=project.id) }}"
+    onsubmit="return confirm('Delete this CTI record permanently?');"
+  >
+    <button class="button button-danger" type="submit">
+      Delete record
+    </button>
+  </form>
+</section>
+{% endblock %}

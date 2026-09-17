@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}CTI Objective Prioritization{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="{{ url_for('main.home') }}" aria-label="CTI home">
+      <span class="brand-mark">CTI</span>
+      <span class="brand-copy">
+        Objective Prioritization
+        <small>V4.8.2</small>
+      </span>
+    </a>
+
+    <button
+      class="nav-toggle"
+      type="button"
+      aria-label="Toggle navigation"
+      aria-expanded="false"
+      onclick="const nav = document.querySelector('.main-nav'); nav.classList.toggle('open'); this.setAttribute('aria-expanded', nav.classList.contains('open'))"
+    >
+      Menu
+    </button>
+
+    <nav class="main-nav" aria-label="Main navigation">
+      <a href="{{ url_for('main.home') }}">Home</a>
+      <a href="/dashboard">Dashboard</a>
+      <a href="/models">Models</a>
+      <a href="/resources">Resources</a>
+      <a href="{{ url_for('main.new_cti') }}">New CTI</a>
+      <a href="{{ url_for('main.upload') }}">Upload Proposal</a>
+    </nav>
+  </header>
+
+  <main class="page-shell">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% for category, message in messages %}
+        <div class="alert alert-{{ category }}">{{ message }}</div>
+      {% endfor %}
+    {% endwith %}
+    {% block content %}{% endblock %}
+  </main>
+
+  <footer class="footer">CTI Portfolio Management Prototype</footer>
+</body>
+</html>

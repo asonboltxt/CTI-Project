@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+{% block title %}CTI Portfolio Dashboard{% endblock %}
+{% block content %}
+<div class="dashboard-page">
+<section class="dashboard-hero">
+  <div class="dashboard-hero-copy">
+    <p class="eyebrow">PORTFOLIO MANAGEMENT</p>
+    <h1>CTI Dashboard</h1>
+    <p>Monitor the active portfolio, prioritize urgent work, and move CTIs through their lifecycle.</p>
+  </div>
+  <div class="button-row"><a class="button button-secondary" href="{{ url_for('main.upload') }}">Upload proposal</a><a class="button button-primary" href="{{ url_for('main.new_cti') }}">New CTI</a></div>
+</section>
+
+{% set m = metrics|default({}) %}
+<section class="metric-grid dashboard-metrics">
+  <article class="metric-card success-card"><span>Total CTIs</span><strong>{{ m.total|default(projects|length if projects is defined else 0) }}</strong><small>Active portfolio</small></article>
+  <article class="metric-card"><span>M1</span><strong>{{ m.m1|default(0) }}</strong><small>Mandatory</small></article>
+  <article class="metric-card"><span>M2</span><strong>{{ m.m2|default(0) }}</strong><small>Mandatory</small></article>
+  <article class="metric-card"><span>Discretionary</span><strong>{{ m.d|default(0) }}</strong><small>Qualified</small></article>
+  <article class="metric-card warning-card"><span>Missing dates</span><strong>{{ m.missing_dates|default(0) }}</strong><small>Needs review</small></article>
+  <article class="metric-card warning-card"><span>Low confidence</span><strong>{{ m.low_confidence|default(0) }}</strong><small>Risk watch</small></article>
+</section>
+
+<section class="panel phase-summary">
+  <div class="dashboard-section-heading"><div><p class="eyebrow">PROGRESS TRACKER</p><h2>Lifecycle phases</h2><p>Active CTIs grouped by lifecycle phase.</p></div><span class="section-count">{{ m.total|default(projects|length if projects is defined else 0) }} active</span></div>
+  <div class="phase-count-grid">
+  {% for phase in phase_counts %}
+    <a class="phase-count{% if filters.lifecycle_phase == phase.key %} is-active{% endif %}" href="{{ url_for('phase2.dashboard', lifecycle_phase=phase.key) }}">
+      <span>{{ phase.label }}</span><strong>{{ phase.count }}</strong>
+    </a>
+  {% endfor %}
+  </div>
+</section>
+
+<section class="summary-strip dashboard-summary">
+  <article class="summary-stat">
+    <span>Avg OPS</span>
+    <strong>{{ m.avg_ops|default('—') }}</strong>
+    <small>Discretionary average</small>
+  </article>
+</section>
+
+<section class="panel attention-panel">
+  <div class="dashboard-section-heading"><div><p class="eyebrow">ACTION QUEUE</p><h2>Needs attention</h2><p>Records with missing dates, low confidence, or missing evidence.</p></div>{% if needs_attention %}<span class="section-count warning-count">{{ needs_attention|length }} to review</span>{% endif %}</div>
+  {% if needs_attention %}
+  <ul class="attention-list">
+  {% for item in needs_attention %}
+    <li><a href="{{ url_for('phase2.project', project_id=item.project.id) }}"><strong>{{ item.project.title }}</strong></a><span>{{ item.reasons|join(', ') }}</span></li>
+  {% endfor %}
+  </ul>
+  {% else %}<p class="empty-state">No active CTIs need attention.</p>{% endif %}
+</section>
+
+<section class="panel table-panel">
+  <div class="dashboard-section-heading"><div><p class="eyebrow">ACTIVE PORTFOLIO</p><h2>Portfolio records</h2><p>Ranked by qualification, objective score, confidence, and need-by date.</p></div><span class="section-count">{{ projects|length }} shown</span></div>
+  <div class="table-wrap">
+    <table class="portfolio-table">
+      <thead><tr><th>Rank</th><th>Tier</th><th>Lifecycle phase</th><th>Program</th><th>Title</th><th>OPS</th><th>Confidence</th><th>Need by</th><th></th></tr></thead>
+      <tbody>
+      {% for project in projects|default([]) %}
+        <tr>
+          <td>{{ project.company_rank|default(project.rank|default(loop.index)) }}</td>
+          <td><span class="tier tier-{{ project.qualification|default(project.qualification_code|default('d'))|lower }}">{{ project.qualification|default(project.qualification_code|default('D')) }}</span></td>
+          <td>{{ lifecycle_phase_labels.get(project.lifecycle_phase, project.lifecycle_phase or 'Phase 1') }}</td>
+          <td>{{ project.program|default('') }}</td>
+          <td>
+            <a class="table-link" href="{{ url_for('phase2.project', project_id=project.id) }}">
+              <strong>{{ project.title|default('Untitled CTI') }}</strong>
+            </a>
+            <small>{{ project.driver|default('') }}</small>
+          </td>
+          <td>{{ project.ops|default(project.score|default('')) }}</td>
+          <td>{{ project.confidence|default(project.confidence_score|default('')) }}</td>
+          <td>{{ project.need_by|default('') }}</td>
+          <td><a class="table-link" href="{{ url_for('phase2.project', project_id=project.id) }}">Open CTI</a></td>
+        </tr>
+      {% else %}
+        <tr><td colspan="9" class="empty-state">No CTIs have been saved yet. <a href="{{ url_for('main.new_cti') }}">Create the first record.</a></td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+</div>
+{% endblock %}

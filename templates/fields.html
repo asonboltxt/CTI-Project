@@ -1,0 +1,18 @@
+{% macro text_field(name, label, value='', type='text', step=None, hint=None) -%}
+<label class="field{% if name is defined and errors is defined and name in errors %} invalid{% endif %}">
+  <span>{{ label }}</span>
+  <input type="{{ type }}" name="{{ name }}" value="{{ value if value is not none else '' }}"{% if step %} step="{{ step }}"{% endif %}>
+  {% if hint %}<small>{{ hint }}</small>{% endif %}
+</label>
+{%- endmacro %}
+
+{% macro yes_no(name, label, value=False, hint=None) -%}
+<label class="field">
+  <span>{{ label }}</span>
+  <select name="{{ name }}">
+    <option value="no"{% if not value %} selected{% endif %}>No</option>
+    <option value="yes"{% if value %} selected{% endif %}>Yes</option>
+  </select>
+  {% if hint %}<small>{{ hint }}</small>{% endif %}
+</label>
+{%- endmacro %}

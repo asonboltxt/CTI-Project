@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+{% from "fields.html" import text_field, yes_no %}
+{% block title %}Review Extracted Proposal{% endblock %}
+{% block content %}
+<section class="page-heading">
+  <div><p class="eyebrow">DOCUMENT REVIEW</p><h1>Review extracted values</h1><p>Confirm the facts before calculation. Source: {{ original_file_name or source_file }}</p></div>
+  <a class="button button-secondary" href="{{ url_for('main.upload') }}">Choose another file</a>
+</section>
+
+{% if extraction and extraction.warnings %}
+<section class="alert alert-warning">
+  <strong>Extraction warnings</strong>
+  <ul>{% for warning in extraction.warnings %}<li>{{ warning }}</li>{% endfor %}</ul>
+</section>
+{% endif %}
+
+{% if errors %}
+<section class="alert alert-error error-summary">
+  <strong>Review the highlighted fields before calculating.</strong>
+  <ul>{% for message in errors.values() %}<li>{{ message }}</li>{% endfor %}</ul>
+</section>
+{% endif %}
+
+<form action="{{ url_for('main.calculate_upload') }}" method="post" class="stack-form">
+  <input type="hidden" name="source_file" value="{{ source_file }}">
+  <input type="hidden" name="original_file_name" value="{{ original_file_name }}">
+  <input type="hidden" name="source_type" value="{{ extraction.source_type if extraction else '' }}">
+  <input type="hidden" name="template_version" value="{{ extraction.template_version if extraction else '' }}">
+  {% for warning in extraction.warnings if extraction and extraction.warnings %}<input type="hidden" name="extraction_warning" value="{{ warning }}">{% endfor %}
+
+  <section class="panel">
+    <div class="section-heading"><span>1</span><div><h2>Identity and schedule</h2><p>Check title, program, driver, owner, and dates.</p></div></div>
+    <div class="form-grid">
+      {% for name, label, type in [('title','Title','text'),('program','Program / model','text'),('driver','Driver','text'),('phase','Phase','text'),('owner','Owner','text'),('need_by','Need-by date','date'),('target_date','Target date','date')] %}
+        {{ text_field(name, label, data[name] if data and name in data else '', type) }}
+      {% endfor %}
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="section-heading"><span>2</span><div><h2>Problem and business case</h2></div></div>
+    <label class="field full"><span>Problem statement</span><textarea name="problem_statement" rows="5">{{ data.problem_statement if data else '' }}</textarea></label>
+    <label class="field full"><span>Business case</span><textarea name="business_case" rows="5">{{ data.business_case if data else '' }}</textarea></label>
+  </section>
+
+  <section class="panel">
+    <div class="section-heading"><span>3</span><div><h2>Extracted objective data</h2></div></div>
+    <div class="form-grid compact">
+      {% for name, label in [
+        ('engineering_threshold','Engineering threshold'),('engineering_hours','Engineering hours'),
+        ('implementation_lead_days','Lead days'),('cos_score','COS score'),
+        ('prevented_deliveries','Prevented deliveries'),('aog_events','AOG events'),
+        ('delivery_delays','Delivery delays'),('line_interruptions','Line interruptions'),
+        ('repeat_rework','Repeat rework'),('affected_fleet_pct','Affected fleet %'),
+        ('customer_escalations','Customer escalations'),('five_year_npv','Five-year NPV'),
+        ('functions_involved','Functions involved'),('model_families','Model families'),
+        ('lifecycle_areas','Lifecycle areas'),('evidence_count','Evidence count'),('milestone_count','Milestone count')
+      ] %}
+        {{ text_field(name, label, data[name] if data and name in data else 0, 'number', '0.1') }}
+      {% endfor %}
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="section-heading"><span>4</span><div><h2>Indicators and readiness</h2></div></div>
+    <div class="form-grid compact">
+      {% for name, label in [
+        ('regulatory','Regulatory'),('certification','Certification'),('external_commitment','External commitment'),
+        ('slt_mandate','SLT mandate'),('delivery_prevention','Delivery prevention'),
+        ('critical_obsolescence','Critical obsolescence'),('major_supply_disruption','Major supply disruption'),
+        ('unit_specific','Unit-specific'),('fast_engineering','Fast engineering'),('non_ecr','Non-ECR'),
+        ('cross_functional','Cross-functional'),('customer_commitment','Customer commitment'),
+        ('ready_owner','Named owner'),('ready_scope','Scope ready'),('ready_business_case','Business case ready'),
+        ('ready_estimate','Estimate ready'),('ready_functions','Functions ready'),('ready_dates','Dates ready'),
+        ('ready_approach','Approach ready'),('ready_funding','Funding ready'),
+        ('ready_milestones','Milestones ready'),('ready_evidence','Evidence ready')
+      ] %}
+        {{ yes_no(name, label, data[name] if data and name in data else false) }}
+      {% endfor %}
+    </div>
+  </section>
+
+  <div class="sticky-actions">
+    <a class="button button-secondary" href="{{ url_for('main.upload') }}">Cancel</a>
+    <button class="button button-primary" type="submit">Calculate and save</button>
+  </div>
+</form>
+{% endblock %}

@@ -1,0 +1,177 @@
+{% extends "base.html" %}
+{% from "fields.html" import text_field, yes_no %}
+{% block title %}New CTI{% endblock %}
+{% block content %}
+<section class="page-heading">
+  <div><p class="eyebrow">RECORD ADDITION</p><h1>Create a CTI</h1><p>Enter factual inputs. The application calculates qualification, score, confidence, and tier.</p></div>
+  <a class="button button-secondary" href="/dashboard">Cancel and return</a>
+</section>
+
+{% if errors %}
+<section class="alert alert-error error-summary">
+  <strong>Review the highlighted fields.</strong>
+  <ul>{% for message in errors.values() %}<li>{{ message }}</li>{% endfor %}</ul>
+</section>
+{% endif %}
+
+<form method="post" class="stack-form">
+  <section class="panel">
+    <div class="section-heading"><span>1</span><div><h2>Project identity</h2><p>Keep the title short and descriptive.</p></div></div>
+    <div class="form-grid">
+      {{ text_field('title', 'Title', data.title if data else '', hint='Required project title') }}
+      {{ text_field('program', 'Program / model', data.program if data else '') }}
+      {{ text_field('driver', 'Driver', data.driver if data else '') }}
+      {{ text_field('phase', 'Phase', data.phase if data else '') }}
+      {{ text_field('owner', 'Owner', data.owner if data else '') }}
+      {{ text_field('engineering_threshold', 'Engineering threshold', data.engineering_threshold if data else 160, 'number', '1') }}
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="section-heading"><span>2</span><div><h2>Problem and business case</h2><p>Explain the issue, consequence, and expected value.</p></div></div>
+    <label class="field full"><span>Problem statement</span><textarea name="problem_statement" rows="5">{{ data.problem_statement if data else '' }}</textarea></label>
+    <label class="field full"><span>Business case</span><textarea name="business_case" rows="5">{{ data.business_case if data else '' }}</textarea></label>
+  </section>
+
+    <section class="panel">
+    <div class="section-heading">
+      <span>3</span>
+      <div>
+        <h2>Schedule and scope</h2>
+        <p>Dates and breadth support ranking and portfolio review.</p>
+      </div>
+    </div>
+
+    <div class="form-grid">
+      {{ text_field('need_by', 'Need-by date', data.need_by if data else '', 'date') }}
+      {{ text_field('target_date', 'Target date', data.target_date if data else '', 'date') }}
+      {{ text_field('implementation_lead_days', 'Implementation lead days', data.implementation_lead_days if data else 0, 'number', '1') }}
+      {{ text_field('engineering_hours', 'Engineering hours', data.engineering_hours if data else 0, 'number', '1') }}
+      {{ text_field('functions_involved', 'Functions involved', data.functions_involved if data else 0, 'number', '1') }}
+      {{ text_field('model_families', 'Model families', data.model_families if data else 1, 'number', '1') }}
+      {{ text_field('lifecycle_areas', 'Lifecycle areas', data.lifecycle_areas if data else 1, 'number', '1') }}
+      {{ text_field('milestone_count', 'Milestone count', data.milestone_count if data else 0, 'number', '1') }}
+      {{ text_field('evidence_count', 'Evidence count', data.evidence_count if data else 0, 'number', '1') }}
+    </div>
+  </section>
+
+  <section class="panel">
+
+    <div class="section-heading">
+
+      <span>4</span>
+
+      <div>
+
+        <h2>Participating Departments</h2>
+
+        <p>
+          Select every department or function that will
+          participate in this CTI.
+        </p>
+
+      </div>
+
+    </div>
+
+    <label class="field full">
+
+      <span>Departments Involved</span>
+
+      <select
+        name="departments"
+        multiple
+        size="12">
+
+        <option>Structures</option>
+        <option>AES</option>
+        <option>Avionics</option>
+        <option>Electrical Systems</option>
+        <option>Software</option>
+        <option>Interiors</option>
+        <option>Materials &amp; Processes</option>
+        <option>Reliability</option>
+        <option>Quality</option>
+        <option>Certification</option>
+        <option>Customer Service Engineering</option>
+        <option>Program Management</option>
+        <option>Manufacturing Engineering</option>
+        <option>Industrial Engineering</option>
+        <option>Supply Chain</option>
+        <option>Procurement</option>
+        <option>Configuration Management</option>
+        <option>Technical Publications</option>
+        <option>Test Engineering</option>
+        <option>Flight Test</option>
+        <option>Safety</option>
+        <option>Production Support</option>
+        <option>Tooling</option>
+
+      </select>
+
+      <small>
+        Hold CTRL while clicking to select multiple departments.
+      </small>
+
+    </label>
+
+  </section>
+
+  <section class="panel">
+    <div class="section-heading">
+      <span>5</span>
+      <div>
+        <h2>Objective impact</h2>
+        <p>Use observed measures rather than a manually selected score.</p>
+      </div>
+    </div>
+
+    <div class="form-grid">
+      {{ text_field('cos_score', 'COS score', data.cos_score if data else 0, 'number', '0.1') }}
+      {{ text_field('prevented_deliveries', 'Prevented deliveries', data.prevented_deliveries if data else 0, 'number', '1') }}
+      {{ text_field('aog_events', 'AOG events', data.aog_events if data else 0, 'number', '1') }}
+      {{ text_field('delivery_delays', 'Delivery delays', data.delivery_delays if data else 0, 'number', '1') }}
+      {{ text_field('line_interruptions', 'Line interruptions', data.line_interruptions if data else 0, 'number', '1') }}
+      {{ text_field('repeat_rework', 'Repeat rework events', data.repeat_rework if data else 0, 'number', '1') }}
+      {{ text_field('affected_fleet_pct', 'Affected fleet %', data.affected_fleet_pct if data else 0, 'number', '0.1') }}
+      {{ text_field('customer_escalations', 'Customer escalations', data.customer_escalations if data else 0, 'number', '1') }}
+      {{ text_field('five_year_npv', 'Five-year NPV', data.five_year_npv if data else 0, 'number', '0.01') }}
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="section-heading"><span>5</span><div><h2>Qualification indicators</h2><p>Identify mandatory and out-of-scope conditions.</p></div></div>
+    <div class="form-grid compact">
+      {% for name, label in [
+        ('regulatory','Regulatory requirement'),('certification','Certification requirement'),
+        ('external_commitment','External commitment'),('slt_mandate','SLT mandate'),
+        ('delivery_prevention','Delivery prevention'),('critical_obsolescence','Critical obsolescence'),
+        ('major_supply_disruption','Major supply disruption'),('cross_functional','Cross-functional'),
+        ('customer_commitment','Customer commitment'),('unit_specific','Unit-specific'),
+        ('fast_engineering','Fast engineering / PDI'),('non_ecr','Non-ECR corrective action')
+      ] %}
+        {{ yes_no(name, label, data[name] if data and name in data else false) }}
+      {% endfor %}
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="section-heading"><span>6</span><div><h2>Execution readiness</h2><p>Document whether the project is ready to enter the portfolio.</p></div></div>
+    <div class="form-grid compact">
+      {% for name, label in [
+        ('ready_owner','Named owner'),('ready_scope','Scope defined'),('ready_business_case','Business case complete'),
+        ('ready_estimate','Estimate complete'),('ready_functions','Functions identified'),('ready_dates','Dates validated'),
+        ('ready_approach','Approach identified'),('ready_funding','Funding identified'),
+        ('ready_milestones','Milestones documented'),('ready_evidence','Evidence documented')
+      ] %}
+        {{ yes_no(name, label, data[name] if data and name in data else false) }}
+      {% endfor %}
+    </div>
+  </section>
+
+  <div class="sticky-actions">
+    <a class="button button-secondary" href="/dashboard">Cancel</a>
+    <button class="button button-primary" type="submit">Calculate and save</button>
+  </div>
+</form>
+{% endblock %}

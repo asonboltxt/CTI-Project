@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}CTI Home{% endblock %}
+{% block content %}
+<section class="hero">
+  <div>
+    <p class="eyebrow">CTI PORTFOLIO</p>
+    <h1>Objective prioritization without the clutter</h1>
+    <p class="lead">Create a CTI manually, import a proposal, or open the portfolio dashboard.</p>
+  </div>
+  <a class="button button-primary" href="/dashboard">Open Dashboard</a>
+</section>
+
+<section class="action-grid" aria-label="Quick actions">
+  <a class="action-card" href="{{ url_for('main.new_cti') }}">
+    <span class="action-number">01</span>
+    <h2>Create CTI</h2>
+    <p>Enter objective project, schedule, impact, readiness, and evidence data.</p>
+  </a>
+  <a class="action-card" href="{{ url_for('main.upload') }}">
+    <span class="action-number">02</span>
+    <h2>Upload Proposal</h2>
+    <p>Import a DOCX or PDF, review extracted facts, and calculate the result.</p>
+  </a>
+  <a class="action-card" href="/dashboard">
+    <span class="action-number">03</span>
+    <h2>Portfolio Dashboard</h2>
+    <p>Review saved records, mandatory queues, scores, dates, and confidence.</p>
+  </a>
+</section>
+
+<section class="info-strip">
+  <div><strong>M1 / M2</strong><span>Ordered by need date</span></div>
+  <div><strong>D</strong><span>Ordered by objective priority score</span></div>
+  <div><strong>Evidence</strong><span>Retained with the saved record</span></div>
+</section>
+{% endblock %}

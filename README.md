@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Exact-format CTI proposal reader update
 
 This parser is specialized for the table and checkbox structures used by the V4.1 proposal templates and the V4.5 mock prioritization test packages.
@@ -13,3 +14,7 @@ This parser is specialized for the table and checkbox structures used by the V4.
 8. Start with `python app.py`.
 
 DOCX uses exact table locations and checkbox glyphs. PDF uses layout-preserving extraction and the same exact labels. Scanned PDFs still require OCR.
+=======
+# CTI-Project
+automatic cti ranker and GUI
+>>>>>>> 276182cc37cb835d2dccd4bcbd02ab2373825e3a

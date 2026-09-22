@@ -11,3 +11,7 @@ uploads/
 *.db-shm
 *.db-wal
 *.log
+
+# Keep the shared test seed database; ignore all other local databases.
+!instance/
+!instance/cti.db

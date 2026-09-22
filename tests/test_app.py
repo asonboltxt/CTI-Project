@@ -8,6 +8,7 @@ from unittest.mock import patch
 
 import app as app_module
 from app import app, create_app
+from phase2.database import assign_user_programs, create_user
 from phase2.database import (
     SCHEMA,
     fetch_draft,
@@ -16,7 +17,9 @@ from phase2.database import (
     fetch_project_departments,
     init_db,
     save_project,
+    update_project,
 )
+from werkzeug.security import generate_password_hash
 
 
 class AppRouteTests(unittest.TestCase):
@@ -30,10 +33,34 @@ class AppRouteTests(unittest.TestCase):
         )
         init_db(app)
         self.client = app.test_client()
+        create_user(
+            "director@example.com",
+            "Director",
+            generate_password_hash("director-password"),
+            "admin",
+        )
+        self.login("director@example.com", "director-password")
 
     def tearDown(self):
         self.app_context.pop()
         self.temp_dir.cleanup()
+
+    def login(self, email, password):
+        response = self.client.post(
+            "/login",
+            data={"email": email, "password": password},
+        )
+        self.assertEqual(response.status_code, 302)
+
+    def create_user(self, email, role, programs=()):
+        user_id = create_user(
+            email,
+            email.split("@")[0].title(),
+            generate_password_hash("password"),
+            role,
+        )
+        assign_user_programs(user_id, programs)
+        return user_id
 
     def test_application_factory_registers_core_routes_and_safe_defaults(self):
         factory_app = create_app(
@@ -47,6 +74,20 @@ class AppRouteTests(unittest.TestCase):
         self.assertTrue(factory_app.secret_key)
         client = factory_app.test_client()
         self.assertEqual(client.get("/health").status_code, 200)
+        with factory_app.app_context():
+            create_user(
+                "factory@example.com",
+                "Factory Viewer",
+                generate_password_hash("factory-password"),
+                "viewer",
+            )
+        self.assertEqual(
+            client.post(
+                "/login",
+                data={"email": "factory@example.com", "password": "factory-password"},
+            ).status_code,
+            302,
+        )
         self.assertEqual(client.get("/dashboard").status_code, 200)
 
     def test_production_factory_requires_secret_key(self):
@@ -264,6 +305,50 @@ class AppRouteTests(unittest.TestCase):
         )
         self.assertEqual(response.status_code, 400)
 
+    def test_program_manager_cannot_change_another_programs_project(self):
+        self.create_user("manager-a@example.com", "program_manager", ["Program A"])
+        self.create_user("manager-b@example.com", "program_manager", ["Program B"])
+        project_id = save_project({"title": "Program A CTI", "program": "Program A"})
+
+        self.client.post("/logout")
+        self.login("manager-b@example.com", "password")
+        response = self.client.post(
+            f"/project/{project_id}/lifecycle-phase",
+            data={"lifecycle_phase": "Phase 6"},
+        )
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(fetch_project(project_id)["lifecycle_phase"], "Phase 3")
+
+    def test_program_manager_can_change_only_assigned_program(self):
+        self.create_user("manager-a@example.com", "program_manager", ["Program A"])
+        project_id = save_project({"title": "Program A CTI", "program": "Program A"})
+
+        self.client.post("/logout")
+        self.login("manager-a@example.com", "password")
+        response = self.client.post(
+            f"/project/{project_id}/lifecycle-phase",
+            data={"lifecycle_phase": "Phase 6"},
+        )
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(fetch_project(project_id)["lifecycle_phase"], "Phase 6")
+
+    def test_viewer_cannot_create_or_delete_ctis(self):
+        viewer_id = self.create_user("viewer@example.com", "viewer")
+        project_id = save_project({"title": "Protected CTI", "program": "Program A"})
+
+        self.client.post("/logout")
+        self.login("viewer@example.com", "password")
+        self.assertEqual(self.client.get("/cti/new").status_code, 403)
+        self.assertEqual(self.client.post(f"/project/{project_id}/delete").status_code, 403)
+        self.assertIsNotNone(fetch_project(project_id))
+
+    def test_anonymous_users_can_view_portfolio_without_mutation_access(self):
+        self.client.post("/logout")
+        self.assertEqual(self.client.get("/dashboard").status_code, 200)
+        self.assertEqual(self.client.get("/models").status_code, 200)
+        self.assertEqual(self.client.get("/resources").status_code, 200)
+        self.assertEqual(self.client.get("/cti/new").status_code, 302)
+
     def test_project_edit_is_unavailable(self):
         project_id = save_project({"title": "Immutable CTI"})
         response = self.client.get(f"/project/{project_id}/edit")
@@ -284,6 +369,32 @@ class AppRouteTests(unittest.TestCase):
         self.assertEqual(response.status_code, 302)
         self.assertIsNone(fetch_project(project_id))
         self.assertEqual(fetch_project_departments(project_id), [])
+
+    def test_project_update_persists_scope_and_source_metadata(self):
+        project_id = save_project(
+            {"title": "Metadata CTI"},
+            source={"file_name": "old.docx", "source_type": "docx"},
+            warnings=["old warning"],
+            extraction={"fields": {"title": {"confidence": 80}}},
+        )
+        self.assertTrue(
+            update_project(
+                project_id,
+                {"title": "Metadata CTI", "scope_change": "Updated scope"},
+                {"code": "D"},
+                {"ops": 42, "factors": {}},
+                {"score": 75},
+                source={"file_name": "new.pdf", "source_type": "pdf", "template_version": "v2"},
+                warnings=["new warning"],
+                extraction={"fields": {"title": {"confidence": 99}}},
+            )
+        )
+        project = fetch_project(project_id)
+        self.assertEqual(project["scope_change"], "Updated scope")
+        self.assertEqual(project["source_file"], "new.pdf")
+        self.assertEqual(project["source_type"], "pdf")
+        self.assertEqual(project["template_version"], "v2")
+        self.assertEqual(project["warnings_json"], '["new warning"]')
 
     def test_existing_database_is_migrated_to_lifecycle_phase(self):
         path = Path(self.temp_dir.name) / "legacy.db"

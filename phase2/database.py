@@ -5,7 +5,7 @@ from pathlib import Path
 from flask import current_app
 from config import DEFAULT_LIFECYCLE_PHASE
 
-SCHEMA_VERSION = 4
+SCHEMA_VERSION = 6
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS schema_version (
@@ -93,6 +93,23 @@ CREATE TABLE IF NOT EXISTS cti_drafts (
 
 CREATE INDEX IF NOT EXISTS idx_cti_departments_dept
 ON cti_departments(department);
+CREATE TABLE IF NOT EXISTS users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    email TEXT NOT NULL UNIQUE,
+    display_name TEXT NOT NULL,
+    password_hash TEXT NOT NULL,
+    role TEXT NOT NULL CHECK (role IN ('admin', 'program_manager', 'viewer')),
+    active INTEGER NOT NULL DEFAULT 1,
+    created_utc TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE IF NOT EXISTS user_programs (
+    user_id INTEGER NOT NULL,
+    program TEXT NOT NULL,
+    PRIMARY KEY (user_id, program),
+    FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_user_programs_program
+ON user_programs(program);
 """
 
 def delete_project(project_id):
@@ -143,27 +160,60 @@ def init_db(app):
         with connection(app) as conn:
             conn.executescript(SCHEMA)
             _migrate_schema(conn)
-            row = conn.execute('SELECT version FROM schema_version LIMIT 1').fetchone()
-            if row is None:
-                conn.execute('INSERT INTO schema_version(version) VALUES (?)', (SCHEMA_VERSION,))
-            elif row["version"] < SCHEMA_VERSION:
-                conn.execute('UPDATE schema_version SET version = ?', (SCHEMA_VERSION,))
             _backfill_departments(conn)
 
 
 def _migrate_schema(conn):
+    row = conn.execute("SELECT version FROM schema_version LIMIT 1").fetchone()
+    current_version = int(row["version"]) if row else 0
+    for version in range(current_version + 1, SCHEMA_VERSION + 1):
+        MIGRATIONS[version](conn)
+        if row:
+            conn.execute("UPDATE schema_version SET version = ?", (version,))
+        else:
+            conn.execute("INSERT INTO schema_version(version) VALUES (?)", (version,))
+            row = True
+
+
+def _add_column_if_missing(conn, table, column, definition):
     columns = {
-        row["name"]
-        for row in conn.execute("PRAGMA table_info(cti_projects)").fetchall()
+        row["name"] for row in conn.execute(f"PRAGMA table_info({table})").fetchall()
     }
-    if "lifecycle_phase" not in columns:
-        conn.execute(
-            "ALTER TABLE cti_projects ADD COLUMN lifecycle_phase TEXT NOT NULL DEFAULT 'Phase 1'"
-        )
-    if "scope_change" not in columns:
-        conn.execute(
-            "ALTER TABLE cti_projects ADD COLUMN scope_change TEXT"
-        )
+    if column not in columns:
+        conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
+
+
+def _migration_1(conn):
+    """Reserve the initial schema version for databases created by SCHEMA."""
+
+
+def _migration_2(conn):
+    _add_column_if_missing(
+        conn, "cti_projects", "lifecycle_phase", "TEXT NOT NULL DEFAULT 'Phase 1'"
+    )
+
+
+def _migration_3(conn):
+    _add_column_if_missing(conn, "cti_projects", "scope_change", "TEXT")
+    _add_column_if_missing(
+        conn, "cti_projects", "extraction_json", "TEXT NOT NULL DEFAULT '{}'"
+    )
+    _add_column_if_missing(
+        conn, "cti_drafts", "extraction_json", "TEXT NOT NULL DEFAULT '{}'"
+    )
+
+
+def _migration_4(conn):
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_cti_lifecycle_phase ON cti_projects(lifecycle_phase)"
+    )
+
+
+def _migration_5(conn):
+    """Reconcile databases whose previous version marker was advanced early."""
+    _migration_2(conn)
+    _migration_3(conn)
+    _migration_4(conn)
     conn.execute(
         """
         UPDATE cti_projects
@@ -171,25 +221,20 @@ def _migrate_schema(conn):
         WHERE lifecycle_phase IS NULL OR TRIM(lifecycle_phase) = ''
         """
     )
-    conn.execute(
-        "CREATE INDEX IF NOT EXISTS idx_cti_lifecycle_phase ON cti_projects(lifecycle_phase)"
-    )
-    project_columns = {
-        row["name"]
-        for row in conn.execute("PRAGMA table_info(cti_projects)").fetchall()
-    }
-    if "extraction_json" not in project_columns:
-        conn.execute(
-            "ALTER TABLE cti_projects ADD COLUMN extraction_json TEXT NOT NULL DEFAULT '{}'"
-        )
-    draft_columns = {
-        row["name"]
-        for row in conn.execute("PRAGMA table_info(cti_drafts)").fetchall()
-    }
-    if "extraction_json" not in draft_columns:
-        conn.execute(
-            "ALTER TABLE cti_drafts ADD COLUMN extraction_json TEXT NOT NULL DEFAULT '{}'"
-        )
+
+
+def _migration_6(conn):
+    """Identity tables are created by SCHEMA for new and existing databases."""
+
+
+MIGRATIONS = {
+    1: _migration_1,
+    2: _migration_2,
+    3: _migration_3,
+    4: _migration_4,
+    5: _migration_5,
+    6: _migration_6,
+}
 
 
 def _backfill_departments(conn):
@@ -488,6 +533,20 @@ def fetch_projects(include_archived=False):
         return [dict(row) for row in conn.execute(sql, params).fetchall()]
 
 
+def fetch_projects_with_departments():
+    with connection() as conn:
+        rows = conn.execute(
+            """
+            SELECT DISTINCT p.*
+            FROM cti_projects p
+            JOIN cti_departments d ON d.project_id = p.id
+            WHERE p.archived = 0
+            ORDER BY p.created_utc DESC, p.id DESC
+            """
+        ).fetchall()
+        return [dict(row) for row in rows]
+
+
 def fetch_project(project_id):
     with connection() as conn:
         row = conn.execute('SELECT * FROM cti_projects WHERE id=?', (project_id,)).fetchone()
@@ -526,6 +585,9 @@ def update_project(
     qualification,
     scoring,
     confidence,
+    source=None,
+    warnings=None,
+    extraction=None,
 ):
     qualification = qualification or {}
     scoring = scoring or {}
@@ -572,6 +634,20 @@ def update_project(
         "scoring_json": _json(scoring),
         "confidence_json": _json(confidence),
     }
+    if "scope_change" in data:
+        values["scope_change"] = data.get("scope_change")
+    if source is not None:
+        values.update(
+            {
+                "source_file": source.get("file_name"),
+                "source_type": source.get("source_type"),
+                "template_version": source.get("template_version"),
+            }
+        )
+    if warnings is not None:
+        values["warnings_json"] = _json(warnings)
+    if extraction is not None:
+        values["extraction_json"] = _json(extraction)
 
     assignments = ", ".join(f"{column} = ?" for column in values)
     with connection() as conn:
@@ -725,3 +801,68 @@ def projects_by_model(program):
         ).fetchall()
 
         return [dict(row) for row in rows]
+
+
+def create_user(email, display_name, password_hash, role="viewer"):
+    if role not in {"admin", "program_manager", "viewer"}:
+        raise ValueError("Invalid user role")
+    with connection() as conn:
+        cursor = conn.execute(
+            """
+            INSERT INTO users (email, display_name, password_hash, role)
+            VALUES (?, ?, ?, ?)
+            """,
+            (email.strip().lower(), display_name.strip(), password_hash, role),
+        )
+        return cursor.lastrowid
+
+
+def fetch_user_by_id(user_id):
+    with connection() as conn:
+        row = conn.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
+        return dict(row) if row else None
+
+
+def fetch_user_by_email(email):
+    with connection() as conn:
+        row = conn.execute(
+            "SELECT * FROM users WHERE email = ?", (email.strip().lower(),)
+        ).fetchone()
+        return dict(row) if row else None
+
+
+def assign_user_programs(user_id, programs):
+    normalized = sorted({str(program).strip() for program in programs if str(program).strip()})
+    with connection() as conn:
+        conn.execute("DELETE FROM user_programs WHERE user_id = ?", (user_id,))
+        conn.executemany(
+            "INSERT INTO user_programs (user_id, program) VALUES (?, ?)",
+            [(user_id, program) for program in normalized],
+        )
+
+
+def user_can_manage_program(user_id, program):
+    if not program:
+        return False
+    with connection() as conn:
+        return bool(
+            conn.execute(
+                "SELECT 1 FROM user_programs WHERE user_id = ? AND program = ?",
+                (user_id, program),
+            ).fetchone()
+        )
+
+
+def user_can_manage_project(user_id, project_id):
+    with connection() as conn:
+        return bool(
+            conn.execute(
+                """
+                SELECT 1
+                FROM cti_projects p
+                JOIN user_programs up ON up.program = p.program
+                WHERE p.id = ? AND up.user_id = ?
+                """,
+                (project_id, user_id),
+            ).fetchone()
+        )

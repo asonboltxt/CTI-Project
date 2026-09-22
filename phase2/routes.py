@@ -9,15 +9,13 @@ from flask import (
     request,
     url_for,
 )
-
-from .analytics import portfolio_metrics, review_reasons
+from .analytics import review_reasons
 from .database import (
     delete_project,
     fetch_project,
     fetch_projects,
     save_project,
     set_archived,
-    fetch_departments,
     projects_by_department,
     fetch_models,
     projects_by_model,
@@ -25,7 +23,9 @@ from .database import (
 )
 from config import LIFECYCLE_PHASE_LABELS
 from .exporting import csv_response
+from .portfolio import dashboard_view, models_view, resources_view
 from .ranking import ranked_projects
+from auth import assert_can_manage_project, assert_can_manage_program, manager_required
 
 phase2_bp = Blueprint(
     "phase2",
@@ -37,63 +37,17 @@ phase2_bp = Blueprint(
 
 @phase2_bp.get("/resources")
 def resources():
-    selected_department = request.args.get(
-        "department",
-        "",
-    ).strip()
-
-    departments = fetch_departments()
-
-    if selected_department:
-        source_projects = projects_by_department(
-            selected_department
-        )
-    else:
-        # Show only projects that appear under at least one department.
-        project_ids = set()
-        for department in departments:
-            for project in projects_by_department(
-                department["department"]
-            ):
-                project_ids.add(project["id"])
-
-        source_projects = [
-            project
-            for project in fetch_projects()
-            if project["id"] in project_ids
-        ]
-
-    projects = ranked_projects(source_projects)
-
+    selected_department = request.args.get("department", "").strip()
     return render_template(
         "phase2/resources.html",
-        departments=departments,
-        selected_department=selected_department,
-        projects=projects,
+        **resources_view(selected_department),
     )
 @phase2_bp.get("/models")
 def models():
-    selected_program = request.args.get(
-        "program",
-        "",
-    ).strip()
-
-    model_rows = fetch_models()
-
-    if selected_program:
-        source_projects = projects_by_model(
-            selected_program
-        )
-    else:
-        source_projects = fetch_projects()
-
-    projects = ranked_projects(source_projects)
-
+    selected_program = request.args.get("program", "").strip()
     return render_template(
         "phase2/models.html",
-        models=model_rows,
-        selected_program=selected_program,
-        projects=projects,
+        **models_view(selected_program),
     )
 
 
@@ -133,142 +87,15 @@ def department_view(
 
 @phase2_bp.get("/dashboard")
 def dashboard():
-
-    ranked = ranked_projects(
-        fetch_projects()
-    )
-
-    program = request.args.get(
-        "program",
-        ""
-    ).strip()
-
-    tier = request.args.get(
-        "tier",
-        ""
-    ).strip().upper()
-
-    query = request.args.get(
-        "q",
-        ""
-    ).strip().lower()
-
-    lifecycle_phase = request.args.get("lifecycle_phase", "").strip()
-
-    filtered = [
-
-        project
-
-        for project in ranked
-
-        if (
-
-            (
-                not program
-                or project.get("program")
-                == program
-            )
-
-            and
-
-            (
-                not lifecycle_phase
-                or project.get("lifecycle_phase") == lifecycle_phase
-            )
-
-            and
-
-            (
-                not tier
-                or project.get(
-                    "qualification"
-                )
-                == tier
-            )
-
-            and
-
-            (
-                not query
-
-                or query in (
-                    project.get(
-                        "title"
-                    )
-                    or ""
-                ).lower()
-
-                or query in (
-                    project.get(
-                        "driver"
-                    )
-                    or ""
-                ).lower()
-
-            )
-
-        )
-
-    ]
-
-    needs_attention = [
-        {"project": project, "reasons": review_reasons(project)}
-        for project in ranked
-        if review_reasons(project)
-    ]
-
-    programs = sorted({
-
-        project.get("program")
-
-        for project in ranked
-
-        if project.get("program")
-
-    })
-    phase_counts = [
-        {
-            "key": key,
-            "label": label,
-            "count": sum(
-                project.get("lifecycle_phase") == key for project in ranked
-            ),
-        }
-        for key, label in LIFECYCLE_PHASE_LABELS.items()
-    ]
-
     return render_template(
-
         "phase2/dashboard.html",
-
-        projects=filtered,
-
-        metrics=portfolio_metrics(
-            ranked
+        **dashboard_view(
+            program=request.args.get("program", "").strip(),
+            tier=request.args.get("tier", "").strip().upper(),
+            query=request.args.get("q", "").strip().lower(),
+            lifecycle_phase=request.args.get("lifecycle_phase", "").strip(),
         ),
-
-        programs=programs,
-
-        filters={
-
-            "program":
-                program,
-
-            "tier":
-                tier,
-
-            "q":
-                request.args.get(
-                    "q",
-                    ""
-                ),
-            "lifecycle_phase": lifecycle_phase,
-
-        },
-        needs_attention=needs_attention,
         lifecycle_phase_labels=LIFECYCLE_PHASE_LABELS,
-        phase_counts=phase_counts,
-
     )
 
 
@@ -350,10 +177,12 @@ def project(project_id):
 
 
 @phase2_bp.post("/project/<int:project_id>/lifecycle-phase")
+@manager_required
 def update_project_lifecycle_phase(project_id):
     item = fetch_project(project_id)
     if not item:
         abort(404)
+    assert_can_manage_project(project_id)
     lifecycle_phase = request.form.get("lifecycle_phase", "").strip()
     if lifecycle_phase not in LIFECYCLE_PHASE_LABELS:
         abort(400, "Invalid lifecycle phase")
@@ -364,7 +193,12 @@ def update_project_lifecycle_phase(project_id):
 @phase2_bp.post(
     "/project/<int:project_id>/archive"
 )
+@manager_required
 def archive(project_id):
+
+    if not fetch_project(project_id):
+        abort(404)
+    assert_can_manage_project(project_id)
 
     set_archived(
         project_id,
@@ -381,7 +215,12 @@ def archive(project_id):
 @phase2_bp.post(
     "/project/<int:project_id>/restore"
 )
+@manager_required
 def restore(project_id):
+
+    if not fetch_project(project_id):
+        abort(404)
+    assert_can_manage_project(project_id)
 
     set_archived(
         project_id,
@@ -399,7 +238,12 @@ def restore(project_id):
 @phase2_bp.post(
     "/project/<int:project_id>/delete"
 )
+@manager_required
 def delete_record(project_id):
+
+    if not fetch_project(project_id):
+        abort(404)
+    assert_can_manage_project(project_id)
 
     delete_project(
         project_id
@@ -427,18 +271,18 @@ def export_csv():
 @phase2_bp.post(
     "/api/projects"
 )
+@manager_required
 def api_create_project():
 
     payload = request.get_json(
         force=True
     )
 
+    data = payload.get("data", {})
+    assert_can_manage_program(data.get("program"))
     project_id = save_project(
 
-        payload.get(
-            "data",
-            {}
-        ),
+        data,
 
         payload.get(
             "qualification"

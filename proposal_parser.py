@@ -1,5 +1,6 @@
 import re
 from datetime import datetime
+from qualification import classification_code
 
 CHECKED = ("☒", "☑", "■", "✓", "✔")
 UNCHECKED = ("☐", "□", "○")
@@ -28,6 +29,17 @@ FIELD_LABELS = {
     "affected_fleet_pct": ("Affected fleet percentage",),
 }
 
+PROGRAM_CATEGORIES = (
+    "King Air",
+    "Part 23 Jets",
+    "Part 25 Jets",
+    "SkyCourier",
+    "Caravan",
+    "OOP",
+    "Pistons",
+    "Ascend",
+)
+
 NUMERIC_FIELDS = {
     "implementation_lead_days", "engineering_hours", "functions_involved",
     "model_families", "affected_aircraft", "active_fleet", "aog_events",
@@ -52,6 +64,29 @@ def clean(value):
 
 def normalized(value):
     return re.sub(r"[^a-z0-9]+", " ", clean(value).lower()).strip()
+
+def normalize_program(value):
+    """Map template model names to the program buckets used by portfolio views."""
+    text = normalized(value)
+    if not text:
+        return ""
+    if re.search(r"\bking air\b", text):
+        return "King Air"
+    if re.search(r"\bsky ?courier\b", text):
+        return "SkyCourier"
+    if re.search(r"\bout of production\b|\boop\b|\bhawker\b", text):
+        return "OOP"
+    if re.search(r"\bascend\b", text):
+        return "Ascend"
+    if re.search(r"\b(?:caravan|grand caravan|model 208|208b|208 caravan)\b", text):
+        return "Caravan"
+    if re.search(r"\b(?:172|182|t206|skyhawk|skylane|stationair|piston)\b", text):
+        return "Pistons"
+    if re.search(r"\b(?:longitude|latitude|sovereign|model 700)\b", text):
+        return "Part 25 Jets"
+    if re.search(r"\b(?:m2|cj3|cj4|model 525|part 23)\b", text):
+        return "Part 23 Jets"
+    return clean(value)
 
 def number(value):
     match = re.search(r"-?\d[\d,]*(?:\.\d+)?", clean(value))
@@ -217,14 +252,26 @@ def checked_option(value, option):
     return bool(re.search(r"(?:☒|☑|■|✓|✔)\s*" + option_pattern, value, re.I))
 
 def selected_driver(value):
-    choices = ["Quality/Reliability", "Supply Chain", "Production Support", "Safety", "Certification Mandate", "Customer Service", "Marketability", "Obsolescence"]
-    for choice in choices:
+    choices = [
+        ("Quality/Reliability", "Quality/Reliability"),
+        ("Supply Chain", "Supply Chain"),
+        ("Production Support", "Production Support"),
+        ("Safety", "Safety"),
+        ("Certification Mandate", "Certification Mandate"),
+        ("Certification / Program Commitment", "Certification Mandate"),
+        ("Regulatory / Certification Compliance", "Certification Mandate"),
+        ("Customer Service", "Customer Service"),
+        ("Marketability", "Marketability"),
+        ("Obsolescence", "Obsolescence"),
+        ("Obsolescence / Supply Continuity", "Obsolescence"),
+    ]
+    for choice, canonical in choices:
         if checked_option(value, choice):
-            return choice
+            return canonical
     plain = normalized(value)
-    for choice in choices:
+    for choice, canonical in choices:
         if normalized(choice) in plain:
-            return choice
+            return canonical
     return "Quality/Reliability"
 
 def selected_phase(value):
@@ -274,6 +321,7 @@ def classification_flags(extracted):
     requested = clean(requested or "")
     basis = clean(mandatory_basis or "")
     combined = clean(requested + " " + basis)
+    has_structured_classification = bool(requested)
     negative = bool(re.search(
         r"not applicable|no safety|no regulatory|no certification|no (?:slt|external)",
         combined,
@@ -295,39 +343,32 @@ def classification_flags(extracted):
     negative_obsolescence = bool(re.search(r"\bno (?:critical )?obsolescence\b|\bnot applicable\b", combined, re.I))
     negative_supply = bool(re.search(r"\bno (?:major )?supply disruption\b|\bnot applicable\b", combined, re.I))
     return {
-        "regulatory": (regulatory_selected or bool(re.search(r"regulatory requirement|regulatory mandate|safety evidence", basis, re.I))) and not negative,
-        "certification": bool(re.search(r"certification mandate|certification requirements? are triggered", basis, re.I)) and not negative,
-        "external_commitment": (external_selected or bool(re.search(r"external(?:ly)? (?:imposed|committed)|mandatory basis", basis, re.I))) and not negative,
-        "slt_mandate": bool(re.search(r"\bSLT\b", basis, re.I)) and not negative,
+        "regulatory": (
+            regulatory_selected
+            if has_structured_classification
+            else bool(re.search(r"regulatory requirement|regulatory mandate|safety evidence", basis, re.I))
+        ) and not negative,
+        "certification": (
+            bool(re.search(r"certification mandate|certification requirements? are triggered", basis, re.I))
+            and (regulatory_selected or not has_structured_classification)
+            and not negative
+        ),
+        "external_commitment": (
+            external_selected
+            if has_structured_classification
+            else bool(re.search(r"external(?:ly)? (?:imposed|committed)|mandatory basis", basis, re.I))
+        ) and not negative,
+        "slt_mandate": (
+            external_selected
+            if has_structured_classification
+            else bool(re.search(r"\bSLT\b", basis, re.I))
+        ) and not negative,
         "critical_obsolescence": positive_obsolescence and not negative_obsolescence,
         "major_supply_disruption": positive_supply and not negative_supply,
     }
 
 def classify_cti(data):
-    threshold = data.get("engineering_threshold") or 160
-    hours = data.get("engineering_hours") or 0
-    if data.get("unit_specific") or data.get("fast_engineering") or data.get("non_ecr"):
-        return "NOT CTI"
-    if (
-        data.get("regulatory")
-        or data.get("certification")
-        or data.get("external_commitment")
-        or data.get("slt_mandate")
-        or (data.get("cos_score") or 0) >= 12
-    ):
-        return "M1"
-    if (
-        hours >= threshold
-        and (
-            data.get("delivery_prevention")
-            or data.get("critical_obsolescence")
-            or data.get("major_supply_disruption")
-        )
-    ):
-        return "M2"
-    if hours >= threshold:
-        return "D"
-    return "NOT CTI"
+    return classification_code(data)
 
 def scope_block(extracted):
     parts = []
@@ -362,6 +403,8 @@ def parse_proposal(extracted):
             warnings.append(f"{field}: extracted value {parsed} {issue}; review required")
             continue
         if parsed is not None and parsed != "":
+            if field == "program":
+                parsed = normalize_program(parsed)
             data[field] = parsed
             candidates = all_row_values(extracted, labels)
             parsed_candidates = [parse_field_value(field, value) for value, _ in candidates]
@@ -530,7 +573,13 @@ def parse_proposal(extracted):
         }
 
     classification = classify_cti(data)
-    requested_classification = "M1" if data.get("regulatory") or data.get("certification") or data.get("external_commitment") or data.get("slt_mandate") else "D"
+    requested_classification = (
+        "M1"
+        if data.get("regulatory") or data.get("certification")
+        else "M2"
+        if data.get("external_commitment") or data.get("slt_mandate")
+        else "D"
+    )
     metadata["classification"] = {
         "raw": requested_classification,
         "normalized": classification,

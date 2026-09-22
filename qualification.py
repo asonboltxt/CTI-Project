@@ -1,6 +1,31 @@
 from config import COS_MANDATORY_GATE, DEFAULT_ENGINEERING_THRESHOLD
 
 
+def classification_code(data):
+    """Return the stable M1/M2/D/NOT CTI decision used by all entry points."""
+    threshold = data.get("engineering_threshold") or DEFAULT_ENGINEERING_THRESHOLD
+    hours = data.get("engineering_hours") or 0
+    if data.get("unit_specific") or data.get("fast_engineering") or data.get("non_ecr"):
+        return "NOT CTI"
+    if (
+        data.get("regulatory")
+        or data.get("certification")
+        or (data.get("cos_score") or 0) >= COS_MANDATORY_GATE
+    ):
+        return "M1"
+    if hours >= threshold and (
+        data.get("external_commitment")
+        or data.get("slt_mandate")
+        or data.get("delivery_prevention")
+        or data.get("critical_obsolescence")
+        or data.get("major_supply_disruption")
+    ):
+        return "M2"
+    if hours >= threshold:
+        return "D"
+    return "NOT CTI"
+
+
 def calculate_qualification(data):
     """Return the V4.8.2 qualification result and its traceable reasons."""
     threshold = data.get("engineering_threshold") or DEFAULT_ENGINEERING_THRESHOLD
@@ -21,16 +46,14 @@ def calculate_qualification(data):
         m1.append("Regulatory requirement")
     if data.get("certification"):
         m1.append("Certification mandate")
-    if data.get("external_commitment"):
-        m1.append("Externally imposed commitment")
-    if data.get("slt_mandate"):
-        m1.append("SLT mandate")
     if data.get("cos_score", 0) >= COS_MANDATORY_GATE:
         m1.append(f"COS score meets the {COS_MANDATORY_GATE:g} mandatory gate")
     if m1:
         return {"code": "M1", "qualified": True, "reasons": m1}
 
     m2 = []
+    if data.get("external_commitment") or data.get("slt_mandate"):
+        m2.append("SLT / external commitment")
     if data.get("delivery_prevention"):
         m2.append("Delivery-prevention commitment")
     if data.get("critical_obsolescence"):

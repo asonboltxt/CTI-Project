@@ -18,6 +18,9 @@ def portfolio_metrics(projects):
         'avg_confidence': round(sum(confidences)/len(confidences), 1) if confidences else None,
         'missing_need_by': sum(not p.get('need_by') for p in active),
         'missing_target': sum(not p.get('target_date') for p in active),
+        'missing_dates': sum(
+            not p.get('need_by') or not p.get('target_date') for p in active
+        ),
         'low_confidence': sum(p.get('confidence') is not None and float(p['confidence']) < 70 for p in active),
         'no_evidence': sum(int(p.get('evidence_count') or 0) == 0 for p in active),
         'tie_projects': tie_projects, 'largest_tie': largest_tie,

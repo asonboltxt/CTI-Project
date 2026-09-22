@@ -1,20 +1,15 @@
-<<<<<<< HEAD
-# Exact-format CTI proposal reader update
 
-This parser is specialized for the table and checkbox structures used by the V4.1 proposal templates and the V4.5 mock prioritization test packages.
-
-## Apply
-1. Stop Flask.
-2. Back up the CTI_V482 folder.
-3. Copy document_reader.py and proposal_parser.py to the project root and replace existing files.
-4. Replace templates/review.html.
-5. Append style_addition.css to static/style.css.
-6. Run `python -m pip install -r requirements.txt`.
-7. Run `python -m py_compile document_reader.py proposal_parser.py app.py`.
-8. Start with `python app.py`.
-
-DOCX uses exact table locations and checkbox glyphs. PDF uses layout-preserving extraction and the same exact labels. Scanned PDFs still require OCR.
-=======
 # CTI-Project
 automatic cti ranker and GUI
->>>>>>> 276182cc37cb835d2dccd4bcbd02ab2373825e3a
+
+## One-click launch on Windows
+
+Double-click [`launch_cti.bat`](./launch_cti.bat). It creates the local Python environment if needed, installs the required packages, starts the CTI server, and opens the site at <http://127.0.0.1:5000>.
+
+If Python 3.12 is not installed, the launcher attempts to install it automatically through Windows Package Manager (`winget`). The first launch requires internet access for Python and package installation. If `winget` is unavailable, install Python 3.12 or newer from <https://www.python.org/downloads/windows/> and run the launcher again. Keep the CTI Engine window open while using the site; closing it stops the application.
+
+To create the first login account, open PowerShell in the project folder after the first launch and run:
+
+```powershell
+.\.venv\Scripts\python.exe -m flask --app app:create_app create-user
+```

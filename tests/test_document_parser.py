@@ -1,9 +1,54 @@
 import unittest
 from pathlib import Path
 from document_reader import read_document
-from proposal_parser import parse_proposal
+from proposal_parser import normalize_program, parse_proposal
+from qualification import calculate_qualification
 
 class ParserTests(unittest.TestCase):
+    def test_programs_are_normalized_to_portfolio_buckets(self):
+        cases = {
+            "Beechcraft King Air 260 and King Air 360": "King Air",
+            "Citation M2 Gen2 / CJ3 Gen2 / CJ4 Gen2 (Model 525)": "Part 23 Jets",
+            "Citation Longitude (Model 700)": "Part 25 Jets",
+            "Cessna SkyCourier (Model 408)": "SkyCourier",
+            "Cessna Caravan (Model 208B)": "Caravan",
+            "Grand Caravan EX (Model 208B)": "Caravan",
+            "Out-of-Production Citation and Hawker Fleet": "OOP",
+            "Cessna 172S Skyhawk and 182T Skylane": "Pistons",
+            "Citation Ascend (Model 560XL Ascend)": "Ascend",
+        }
+        for raw, expected in cases.items():
+            self.assertEqual(normalize_program(raw), expected)
+
+    def test_requested_external_classification_does_not_infer_safety(self):
+        extracted = {
+            "file_type": "docx",
+            "text": (
+                "Requested Classification "
+                "☐ Safety / Regulatory ☒ SLT / External Commitment ☐ Discretionary "
+                "A certification mandate is triggered by the program commitment."
+            ),
+            "tables": [{
+                "table_index": 0,
+                "rows": [
+                    {"row_index": 0, "cells": ["Model / Program", "King Air 360"]},
+                    {"row_index": 1, "cells": ["Engineering Hours", "200"]},
+                    {"row_index": 2, "cells": [
+                        "Requested Classification",
+                        "☐ Safety / Regulatory ☒ SLT / External Commitment ☐ Discretionary",
+                    ]},
+                ],
+            }],
+            "warnings": [],
+        }
+        result = parse_proposal(extracted)
+        self.assertEqual(result["data"]["program"], "King Air")
+        self.assertFalse(result["data"]["regulatory"])
+        self.assertFalse(result["data"]["certification"])
+        self.assertTrue(result["data"]["external_commitment"])
+        self.assertEqual(result["classification"], "M2")
+        self.assertEqual(calculate_qualification(result["data"])["code"], "M2")
+
     def test_classification_and_scope_use_structured_evidence(self):
         extracted = {
             "file_type": "docx",

@@ -1,5 +1,5 @@
-from datetime import date, datetime
-from config import LABELS, WEIGHTS
+from datetime import date, datetime, timezone
+from config import LABELS, SCORING_MODEL_VERSION, WEIGHTS
 
 
 def clamp(value):
@@ -104,6 +104,30 @@ def score_readiness(data):
     return completed * 10.0, [f"{completed} of 10 readiness items complete"]
 
 
+FACTOR_INPUTS = {
+    "urgency": ("need_by", "target_date", "implementation_lead_days"),
+    "operational": (
+        "prevented_deliveries", "aog_events", "delivery_delays",
+        "line_interruptions", "repeat_rework",
+    ),
+    "customer_fleet": ("affected_fleet_pct", "customer_escalations", "customer_commitment"),
+    "financial": ("five_year_npv",),
+    "breadth": ("functions_involved", "model_families", "lifecycle_areas"),
+    "readiness": (
+        "ready_owner", "ready_scope", "ready_business_case", "ready_estimate",
+        "ready_functions", "ready_dates", "ready_approach", "ready_funding",
+        "ready_milestones", "ready_evidence",
+    ),
+}
+
+
+def missing_inputs(data, fields):
+    return [
+        field for field in fields
+        if field not in data or data.get(field) in (None, "")
+    ]
+
+
 def calculate_all_scores(data):
     methods = {
         "urgency": score_urgency,
@@ -116,9 +140,26 @@ def calculate_all_scores(data):
     factors = {}
     for key, method in methods.items():
         score, details = method(data)
-        factors[key] = {"label": LABELS[key], "score": score, "weight": WEIGHTS[key], "details": details, "contribution": round(score * WEIGHTS[key], 2)}
+        missing = missing_inputs(data, FACTOR_INPUTS[key])
+        factors[key] = {
+            "label": LABELS[key],
+            "score": score,
+            "weight": WEIGHTS[key],
+            "details": details,
+            "contribution": round(score * WEIGHTS[key], 2),
+            "missing_inputs": missing,
+            "complete": not missing,
+        }
     ops = round(sum(item["contribution"] for item in factors.values()), 2)
-    return {"ops": ops, "factors": factors}
+    missing = sorted({field for factor in factors.values() for field in factor["missing_inputs"]})
+    return {
+        "ops": ops,
+        "factors": factors,
+        "model_version": SCORING_MODEL_VERSION,
+        "scored_utc": datetime.now(timezone.utc).isoformat(),
+        "missing_inputs": missing,
+        "data_quality": "Complete" if not missing else "Incomplete",
+    }
 
 
 def priority_tier(ops, qualification):

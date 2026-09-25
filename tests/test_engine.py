@@ -46,5 +46,18 @@ class EngineTests(unittest.TestCase):
         data = {"engineering_hours": 1000, "engineering_threshold": 160, "unit_specific": True}
         self.assertEqual(calculate_qualification(data)["code"], "NOT CTI")
 
+    def test_score_metadata_identifies_missing_inputs_without_changing_score(self):
+        result = calculate_all_scores({})
+        self.assertEqual(result["model_version"], "1.0")
+        self.assertTrue(result["scored_utc"])
+        self.assertEqual(result["data_quality"], "Incomplete")
+        self.assertIn("need_by", result["missing_inputs"])
+        self.assertIn("five_year_npv", result["factors"]["financial"]["missing_inputs"])
+        self.assertFalse(result["factors"]["financial"]["complete"])
+
+        zero_result = calculate_all_scores({"five_year_npv": 0})
+        self.assertNotIn("five_year_npv", zero_result["factors"]["financial"]["missing_inputs"])
+        self.assertTrue(zero_result["factors"]["financial"]["complete"])
+
 if __name__ == "__main__":
     unittest.main()

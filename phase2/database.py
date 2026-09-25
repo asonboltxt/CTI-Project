@@ -5,7 +5,7 @@ from pathlib import Path
 from flask import current_app
 from config import DEFAULT_LIFECYCLE_PHASE
 
-SCHEMA_VERSION = 6
+SCHEMA_VERSION = 7
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS schema_version (
@@ -52,6 +52,8 @@ CREATE TABLE IF NOT EXISTS cti_projects (
     extraction_json TEXT NOT NULL DEFAULT '{}',
     raw_data_json TEXT NOT NULL DEFAULT '{}',
     scoring_json TEXT NOT NULL DEFAULT '{}',
+    scoring_model_version TEXT,
+    scored_utc TEXT,
     confidence_json TEXT NOT NULL DEFAULT '{}',
     archived INTEGER NOT NULL DEFAULT 0,
     created_utc TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -227,6 +229,11 @@ def _migration_6(conn):
     """Identity tables are created by SCHEMA for new and existing databases."""
 
 
+def _migration_7(conn):
+    _add_column_if_missing(conn, "cti_projects", "scoring_model_version", "TEXT")
+    _add_column_if_missing(conn, "cti_projects", "scored_utc", "TEXT")
+
+
 MIGRATIONS = {
     1: _migration_1,
     2: _migration_2,
@@ -234,6 +241,7 @@ MIGRATIONS = {
     4: _migration_4,
     5: _migration_5,
     6: _migration_6,
+    7: _migration_7,
 }
 
 
@@ -420,6 +428,8 @@ def save_project(
             _json(data),
         "scoring_json":
             _json(scoring),
+        "scoring_model_version": scoring.get("model_version"),
+        "scored_utc": scoring.get("scored_utc"),
         "confidence_json":
             _json(confidence),
         "extraction_json":
@@ -633,6 +643,8 @@ def update_project(
         "raw_data_json": _json(data),
         "scoring_json": _json(scoring),
         "confidence_json": _json(confidence),
+        "scoring_model_version": scoring.get("model_version"),
+        "scored_utc": scoring.get("scored_utc"),
     }
     if "scope_change" in data:
         values["scope_change"] = data.get("scope_change")

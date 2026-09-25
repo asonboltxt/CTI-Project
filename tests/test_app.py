@@ -149,6 +149,22 @@ class AppRouteTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(fetch_projects()[0]["lifecycle_phase"], "Phase 3")
 
+    def test_saved_project_keeps_scoring_model_metadata(self):
+        project_id = save_project(
+            {"title": "Scored metadata CTI"},
+            scoring={
+                "ops": 12.5,
+                "model_version": "1.0",
+                "scored_utc": "2026-09-23T12:00:00+00:00",
+                "factors": {},
+                "missing_inputs": ["need_by"],
+                "data_quality": "Incomplete",
+            },
+        )
+        project = fetch_project(project_id)
+        self.assertEqual(project["scoring_model_version"], "1.0")
+        self.assertEqual(project["scored_utc"], "2026-09-23T12:00:00+00:00")
+
     def test_project_detail_uses_only_lifecycle_phase(self):
         project_id = save_project({
             "title": "Lifecycle-only CTI",

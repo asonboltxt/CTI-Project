@@ -11,7 +11,16 @@
   <article class="metric-card"><span>Priority tier</span><strong>{{ tier }}</strong></article>
   <article class="metric-card"><span>Objective score</span><strong>{{ '%.1f'|format(scoring.ops|float) }}</strong></article>
   <article class="metric-card"><span>Confidence</span><strong>{{ confidence.score if confidence.score is defined else confidence }}</strong></article>
+  <article class="metric-card"><span>Score data quality</span><strong>{{ scoring.data_quality }}</strong><small>Model {{ scoring.model_version }}</small></article>
 </section>
+
+{% if scoring.missing_inputs %}
+<section class="alert alert-warning">
+  <strong>Score inputs need review</strong>
+  <p>Missing inputs do not change the current score formula, but they reduce how complete the score is.</p>
+  <ul>{% for field in scoring.missing_inputs %}<li>{{ field|replace('_', ' ')|title }}</li>{% endfor %}</ul>
+</section>
+{% endif %}
 
 <div class="content-grid">
   <section class="panel">
@@ -44,4 +53,5 @@
 
 {% if extraction and extraction.warnings %}<section class="alert alert-warning"><strong>Extraction warnings retained with the record</strong><ul>{% for warning in extraction.warnings %}<li>{{ warning }}</li>{% endfor %}</ul></section>{% endif %}
 <p class="muted">Saved record ID: {{ project_id }}</p>
+<p class="muted">Scored {{ scoring.scored_utc }} using model {{ scoring.model_version }}.</p>
 {% endblock %}

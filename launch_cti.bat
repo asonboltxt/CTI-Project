@@ -72,9 +72,29 @@ if not exist ".venv\Scripts\python.exe" (
 )
 
 echo Installing or updating CTI dependencies...
+".venv\Scripts\python.exe" -m pip install --help >nul 2>nul
+if errorlevel 1 (
+    echo Repairing the CTI Python package installer...
+    for /d %%D in (".venv\Lib\site-packages\pip-*.dist-info") do ren "%%D" "%%~nxD.broken"
+    if exist ".venv\Lib\site-packages\pip" rmdir /s /q ".venv\Lib\site-packages\pip"
+    ".venv\Scripts\python.exe" -m ensurepip --upgrade
+    if errorlevel 1 (
+        echo Unable to repair pip in the CTI Python environment.
+        echo Delete the .venv folder and run this launcher again to recreate it.
+        pause
+        exit /b 1
+    )
+    ".venv\Scripts\python.exe" -m pip install --help >nul 2>nul
+    if errorlevel 1 (
+        echo pip is still unavailable after repair.
+        echo Delete the .venv folder and run this launcher again to recreate it.
+        pause
+        exit /b 1
+    )
+)
 ".venv\Scripts\python.exe" -m pip install -r requirements.txt
 if errorlevel 1 (
-    echo Dependency installation failed. Check your network connection and try again.
+    echo Dependency installation failed. Check your network connection and proxy settings.
     pause
     exit /b 1
 )

@@ -10,10 +10,13 @@ class ParserTests(unittest.TestCase):
             "Beechcraft King Air 260 and King Air 360": "King Air",
             "Citation M2 Gen2 / CJ3 Gen2 / CJ4 Gen2 (Model 525)": "Part 23 Jets",
             "Citation Longitude (Model 700)": "Part 25 Jets",
+            "Citation Latitude": "Part 25 Jets",
+            "Part 25 Jets": "OOP",
             "Cessna SkyCourier (Model 408)": "SkyCourier",
             "Cessna Caravan (Model 208B)": "Caravan",
             "Grand Caravan EX (Model 208B)": "Caravan",
             "Out-of-Production Citation and Hawker Fleet": "OOP",
+            "Unlisted aircraft model": "OOP",
             "Cessna 172S Skyhawk and 182T Skylane": "Pistons",
             "Citation Ascend (Model 560XL Ascend)": "Ascend",
         }

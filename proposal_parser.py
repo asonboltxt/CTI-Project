@@ -74,19 +74,17 @@ def normalize_program(value):
         return "King Air"
     if re.search(r"\bsky ?courier\b", text):
         return "SkyCourier"
-    if re.search(r"\bout of production\b|\boop\b|\bhawker\b", text):
-        return "OOP"
+    if re.search(r"\b(?:longitude|latitude)\b", text):
+        return "Part 25 Jets"
+    if re.search(r"\b(?:m2|cj3|cj4|part 23)\b", text):
+        return "Part 23 Jets"
     if re.search(r"\bascend\b", text):
         return "Ascend"
     if re.search(r"\b(?:caravan|grand caravan|model 208|208b|208 caravan)\b", text):
         return "Caravan"
     if re.search(r"\b(?:172|182|t206|skyhawk|skylane|stationair|piston)\b", text):
         return "Pistons"
-    if re.search(r"\b(?:longitude|latitude|sovereign|model 700)\b", text):
-        return "Part 25 Jets"
-    if re.search(r"\b(?:m2|cj3|cj4|model 525|part 23)\b", text):
-        return "Part 23 Jets"
-    return clean(value)
+    return "OOP"
 
 def number(value):
     match = re.search(r"-?\d[\d,]*(?:\.\d+)?", clean(value))

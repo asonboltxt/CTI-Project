@@ -5,24 +5,35 @@
   <div>
     <p class="eyebrow">CTI PORTFOLIO</p>
     <h1>Objective prioritization without the clutter</h1>
-    <p class="lead">Create a CTI manually, import a proposal, or open the portfolio dashboard.</p>
+    {% if current_user.is_authenticated and current_user.role in ('admin', 'program_manager') %}
+      <p class="lead">Create a CTI manually, import a proposal, or open the portfolio dashboard.</p>
+    {% else %}
+      <p class="lead">Browse the portfolio dashboard. CTI creation and proposal imports are available to program managers.</p>
+    {% endif %}
   </div>
-  <a class="button button-primary" href="/dashboard">Open Dashboard</a>
+  <div class="button-row">
+    <a class="button button-primary" href="{{ url_for('phase2.dashboard') }}">Open Dashboard</a>
+    {% if not current_user.is_authenticated %}
+      <a class="button button-secondary" href="{{ url_for('auth.login') }}">Sign in to manage CTIs</a>
+    {% endif %}
+  </div>
 </section>
 
 <section class="action-grid" aria-label="Quick actions">
-  <a class="action-card" href="{{ url_for('main.new_cti') }}">
-    <span class="action-number">01</span>
-    <h2>Create CTI</h2>
-    <p>Enter objective project, schedule, impact, readiness, and evidence data.</p>
-  </a>
-  <a class="action-card" href="{{ url_for('main.upload') }}">
-    <span class="action-number">02</span>
-    <h2>Upload Proposal</h2>
-    <p>Import a DOCX or PDF, review extracted facts, and calculate the result.</p>
-  </a>
-  <a class="action-card" href="/dashboard">
-    <span class="action-number">03</span>
+  {% if current_user.is_authenticated and current_user.role in ('admin', 'program_manager') %}
+    <a class="action-card" href="{{ url_for('main.new_cti') }}">
+      <span class="action-number">01</span>
+      <h2>Create CTI</h2>
+      <p>Enter objective project, schedule, impact, readiness, and evidence data.</p>
+    </a>
+    <a class="action-card" href="{{ url_for('main.upload') }}">
+      <span class="action-number">02</span>
+      <h2>Upload Proposal</h2>
+      <p>Import a DOCX or PDF, review extracted facts, and calculate the result.</p>
+    </a>
+  {% endif %}
+  <a class="action-card" href="{{ url_for('phase2.dashboard') }}">
+    <span class="action-number">{% if current_user.is_authenticated and current_user.role in ('admin', 'program_manager') %}03{% else %}01{% endif %}</span>
     <h2>Portfolio Dashboard</h2>
     <p>Review saved records, mandatory queues, scores, dates, and confidence.</p>
   </a>

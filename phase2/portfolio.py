@@ -5,22 +5,23 @@ from .database import (
     fetch_projects,
     fetch_projects_with_departments,
     projects_by_department,
+    projects_by_departments,
     projects_by_model,
 )
 from .ranking import ranked_projects
 from config import LIFECYCLE_PHASE_LABELS
 
 
-def resources_view(selected_department=""):
+def resources_view(selected_departments=()):
     departments = fetch_departments()
     source_projects = (
-        projects_by_department(selected_department)
-        if selected_department
+        projects_by_departments(selected_departments)
+        if selected_departments
         else fetch_projects_with_departments()
     )
     return {
         "departments": departments,
-        "selected_department": selected_department,
+        "selected_departments": selected_departments,
         "projects": ranked_projects(source_projects),
     }
 

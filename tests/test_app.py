@@ -147,6 +147,8 @@ class AppRouteTests(unittest.TestCase):
         self.client.post(f"/cti/{token}/step/3", data={})
         response = self.client.post(f"/cti/{token}/step/4", data={})
         self.assertEqual(response.status_code, 200)
+        self.assertIn(b"Data completeness", response.data)
+        self.assertNotIn(b">Confidence<", response.data)
         self.assertEqual(fetch_projects()[0]["lifecycle_phase"], "Phase 3")
 
     def test_saved_project_keeps_scoring_model_metadata(self):
@@ -175,6 +177,33 @@ class AppRouteTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn(b"Lifecycle phase", response.data)
         self.assertNotIn(b">Legacy content phase<", response.data)
+        self.assertIn(b"Data completeness", response.data)
+        self.assertNotIn(b">Confidence<", response.data)
+
+    def test_project_detail_explains_saved_score_factors_without_method_metadata(self):
+        project_id = save_project(
+            {"title": "Explained scoring", "five_year_npv": 250000},
+            scoring={
+                "ops": 7.5,
+                "model_version": "1.0",
+                "data_quality": "Incomplete",
+                "missing_inputs": ["five_year_npv"],
+                "factors": {
+                    "financial": {
+                        "label": "Financial",
+                        "score": 50,
+                        "weight": 0.15,
+                        "contribution": 7.5,
+                        "details": ["Five-year net benefit: $250,000"],
+                    }
+                },
+            },
+        )
+        response = self.client.get(f"/project/{project_id}")
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(b"How this factor is scored", response.data)
+        self.assertIn(b"bounded from 0 to 100", response.data)
+        self.assertIn(b"7.50 OPS points", response.data)
 
     def test_wizard_rejects_range_error_and_final_submission_saves_project(self):
         token = self.draft_token()
@@ -209,10 +238,12 @@ class AppRouteTests(unittest.TestCase):
             data={"ready_owner": "yes"},
         )
         self.assertEqual(response.status_code, 200)
+        self.assertIn(b"Data completeness", response.data)
+        self.assertNotIn(b">Confidence<", response.data)
         self.assertEqual(len(fetch_projects()), 1)
         self.assertIsNone(fetch_draft(token))
 
-    def test_dashboard_lists_attention_reasons(self):
+    def test_dashboard_hides_average_ops_and_attention_queue(self):
         save_project(
             {"title": "Needs review", "program": "Program A"},
             qualification={"code": "D"},
@@ -221,9 +252,25 @@ class AppRouteTests(unittest.TestCase):
         )
         response = self.client.get("/dashboard")
         self.assertEqual(response.status_code, 200)
-        self.assertIn(b"Needs attention", response.data)
-        self.assertIn(b"Missing need-by date", response.data)
-        self.assertIn(b"Confidence below 70", response.data)
+        self.assertNotIn(b"Avg OPS", response.data)
+        self.assertNotIn(b"Needs attention", response.data)
+        self.assertNotIn(b"Missing need-by date", response.data)
+        self.assertNotIn(b"Confidence below 70", response.data)
+        self.assertIn(b"Needs review", response.data)
+        self.assertNotIn(b"<th>Confidence</th>", response.data)
+        self.assertNotIn(b"<dt>Confidence</dt>", response.data)
+
+    def test_dashboard_phase_card_clears_selected_filter_when_clicked_again(self):
+        response = self.client.get("/dashboard?lifecycle_phase=Phase+3")
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(
+            b'class="phase-count is-active" href="/dashboard" aria-current="true"',
+            response.data,
+        )
+        self.assertIn(
+            b'href="/dashboard?lifecycle_phase=Phase+4"',
+            response.data,
+        )
 
     def test_dashboard_opens_cti_project_record(self):
         project_id = save_project({"title": "Dashboard CTI", "program": "Program A"})
@@ -236,6 +283,122 @@ class AppRouteTests(unittest.TestCase):
         project_response = self.client.get(f"/project/{project_id}")
         self.assertEqual(project_response.status_code, 200)
         self.assertIn(b"Dashboard CTI", project_response.data)
+
+    def test_dashboard_renders_responsive_portfolio_cards(self):
+        save_project(
+            {
+                "title": "Responsive CTI",
+                "program": "Program A",
+                "driver": "A sample driver",
+                "lifecycle_phase": "Phase 4",
+                "need_by": "2027-01-15",
+            },
+            qualification={"code": "M1"},
+            scoring={"ops": 42},
+            confidence={"score": 82},
+        )
+        response = self.client.get("/dashboard")
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(b'class="portfolio-card-list"', response.data)
+        self.assertIn(b'class="portfolio-card"', response.data)
+        self.assertIn(b"Responsive CTI", response.data)
+        self.assertIn(b"A sample driver", response.data)
+        self.assertIn(b"Lifecycle", response.data)
+        self.assertIn(b"Need by", response.data)
+        self.assertIn(b'class="portfolio-table dashboard-portfolio-table"', response.data)
+        self.assertNotIn(b"<th>Confidence</th>", response.data)
+        self.assertNotIn(b"<dt>Confidence</dt>", response.data)
+
+    def test_selected_program_card_clears_program_filter_when_clicked_again(self):
+        save_project({"title": "Program A CTI", "program": "Program A"})
+        response = self.client.get("/models?program=Program+A")
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(b'class="program-card-grid models-card-grid"', response.data)
+        self.assertIn(b'class="program-card is-active"', response.data)
+        self.assertNotIn(b"<th>Confidence</th>", response.data)
+        self.assertIn(
+            b'href="/models"',
+            response.data,
+        )
+        self.assertIn(b"Show all programs", response.data)
+
+    def test_selected_department_card_clears_department_filter_when_clicked_again(self):
+        save_project(
+            {"title": "Department CTI", "departments": ["Avionics"]}
+        )
+        response = self.client.get("/resources?department=Avionics")
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(b'class="program-card resource-filter-card is-active"', response.data)
+        self.assertIn(b'href="/resources"', response.data)
+        self.assertIn(b'aria-pressed="true"', response.data)
+        self.assertIn(b"Selected", response.data)
+        self.assertNotIn(b'<select name="department"', response.data)
+        self.assertNotIn(b"Filter ranked list by department", response.data)
+
+    def test_resource_department_filters_match_all_selected_departments(self):
+        save_project(
+            {"title": "Both departments", "departments": ["Avionics", "Software"]}
+        )
+        save_project(
+            {"title": "Avionics only", "departments": ["Avionics"]}
+        )
+        save_project(
+            {"title": "Software only", "departments": ["Software"]}
+        )
+
+        response = self.client.get(
+            "/resources?department=Avionics&department=Software"
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(b"Both departments", response.data)
+        self.assertNotIn(b"Avionics only", response.data)
+        self.assertNotIn(b"Software only", response.data)
+        self.assertIn(b"Selected", response.data)
+        self.assertIn(b"Clear filters", response.data)
+
+    def test_resource_department_card_adds_and_removes_single_selection(self):
+        save_project(
+            {"title": "Avionics CTI", "departments": ["Avionics"]}
+        )
+        save_project(
+            {"title": "Software CTI", "departments": ["Software"]}
+        )
+        response = self.client.get("/resources?department=Avionics")
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(
+            b'href="/resources?department=Avionics&amp;department=Software"',
+            response.data,
+        )
+
+    def test_home_and_dashboard_show_management_actions_to_managers(self):
+        for path in ("/", "/dashboard"):
+            with self.subTest(path=path):
+                response = self.client.get(path)
+                self.assertEqual(response.status_code, 200)
+                self.assertIn(b'href="/new-cti"', response.data)
+                self.assertIn(b'href="/upload"', response.data)
+
+    def test_home_and_dashboard_offer_sign_in_to_anonymous_visitors(self):
+        self.client.post("/logout")
+        for path in ("/", "/dashboard"):
+            with self.subTest(path=path):
+                response = self.client.get(path)
+                self.assertEqual(response.status_code, 200)
+                self.assertIn(b'href="/login"', response.data)
+                self.assertNotIn(b'href="/new-cti"', response.data)
+                self.assertNotIn(b'href="/upload"', response.data)
+
+    def test_home_and_dashboard_hide_management_actions_from_viewers(self):
+        self.create_user("viewer-actions@example.com", "viewer")
+        self.client.post("/logout")
+        self.login("viewer-actions@example.com", "password")
+        for path in ("/", "/dashboard"):
+            with self.subTest(path=path):
+                response = self.client.get(path)
+                self.assertEqual(response.status_code, 200)
+                self.assertNotIn(b'href="/new-cti"', response.data)
+                self.assertNotIn(b'href="/upload"', response.data)
+        self.assertIn(b"read-only access", self.client.get("/dashboard").data)
 
     def test_submitted_departments_are_available_on_resources_page(self):
         token = self.draft_token()
@@ -581,7 +744,9 @@ class AppRouteTests(unittest.TestCase):
             },
         )
         self.assertEqual(result.status_code, 200)
-        self.assertIn(b"Objective score breakdown", result.data)
+        self.assertIn(b"Where the objective score comes from", result.data)
+        self.assertIn(b"How this factor is scored", result.data)
+        self.assertIn(b"OPS points", result.data)
         project = fetch_projects()[0]
         self.assertGreater(project["ops"], 0)
         self.assertEqual(project["source_type"], "pdf")

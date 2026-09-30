@@ -8,7 +8,13 @@
     <h1>CTI Dashboard</h1>
     <p>Monitor the active portfolio, prioritize urgent work, and move CTIs through their lifecycle.</p>
   </div>
-  <div class="button-row"><a class="button button-secondary" href="{{ url_for('main.upload') }}">Upload proposal</a><a class="button button-primary" href="{{ url_for('main.new_cti') }}">New CTI</a></div>
+  {% if current_user.is_authenticated and current_user.role in ('admin', 'program_manager') %}
+    <div class="button-row"><a class="button button-secondary" href="{{ url_for('main.upload') }}">Upload proposal</a><a class="button button-primary" href="{{ url_for('main.new_cti') }}">New CTI</a></div>
+  {% elif not current_user.is_authenticated %}
+    <a class="button button-primary" href="{{ url_for('auth.login') }}">Sign in to manage CTIs</a>
+  {% else %}
+    <p class="muted">You have read-only access to this portfolio.</p>
+  {% endif %}
 </section>
 
 {% set m = metrics|default({}) %}
@@ -25,37 +31,18 @@
   <div class="dashboard-section-heading"><div><p class="eyebrow">PROGRESS TRACKER</p><h2>Lifecycle phases</h2><p>Active CTIs grouped by lifecycle phase.</p></div><span class="section-count">{{ m.total|default(projects|length if projects is defined else 0) }} active</span></div>
   <div class="phase-count-grid">
   {% for phase in phase_counts %}
-    <a class="phase-count{% if filters.lifecycle_phase == phase.key %} is-active{% endif %}" href="{{ url_for('phase2.dashboard', lifecycle_phase=phase.key) }}">
+    <a class="phase-count{% if filters.lifecycle_phase == phase.key %} is-active{% endif %}" href="{% if filters.lifecycle_phase == phase.key %}{{ url_for('phase2.dashboard') }}{% else %}{{ url_for('phase2.dashboard', lifecycle_phase=phase.key) }}{% endif %}"{% if filters.lifecycle_phase == phase.key %} aria-current="true"{% endif %}>
       <span>{{ phase.label }}</span><strong>{{ phase.count }}</strong>
     </a>
   {% endfor %}
   </div>
 </section>
 
-<section class="summary-strip dashboard-summary">
-  <article class="summary-stat">
-    <span>Avg OPS</span>
-    <strong>{{ m.avg_ops|default('—') }}</strong>
-    <small>Discretionary average</small>
-  </article>
-</section>
-
-<section class="panel attention-panel">
-  <div class="dashboard-section-heading"><div><p class="eyebrow">ACTION QUEUE</p><h2>Needs attention</h2><p>Records with missing dates, low confidence, or missing evidence.</p></div>{% if needs_attention %}<span class="section-count warning-count">{{ needs_attention|length }} to review</span>{% endif %}</div>
-  {% if needs_attention %}
-  <ul class="attention-list">
-  {% for item in needs_attention %}
-    <li><a href="{{ url_for('phase2.project', project_id=item.project.id) }}"><strong>{{ item.project.title }}</strong></a><span>{{ item.reasons|join(', ') }}</span></li>
-  {% endfor %}
-  </ul>
-  {% else %}<p class="empty-state">No active CTIs need attention.</p>{% endif %}
-</section>
-
 <section class="panel table-panel">
-  <div class="dashboard-section-heading"><div><p class="eyebrow">ACTIVE PORTFOLIO</p><h2>Portfolio records</h2><p>Ranked by qualification, objective score, confidence, and need-by date.</p></div><span class="section-count">{{ projects|length }} shown</span></div>
+  <div class="dashboard-section-heading"><div><p class="eyebrow">ACTIVE PORTFOLIO</p><h2>Portfolio records</h2><p>Ranked by qualification, objective score, and need-by date.</p></div><span class="section-count">{{ projects|length }} shown</span></div>
   <div class="table-wrap">
-    <table class="portfolio-table">
-      <thead><tr><th>Rank</th><th>Tier</th><th>Lifecycle phase</th><th>Program</th><th>Title</th><th>OPS</th><th>Confidence</th><th>Need by</th><th></th></tr></thead>
+    <table class="portfolio-table dashboard-portfolio-table">
+      <thead><tr><th>Rank</th><th>Tier</th><th>Lifecycle phase</th><th>Program</th><th>Title</th><th>OPS</th><th>Need by</th><th></th></tr></thead>
       <tbody>
       {% for project in projects|default([]) %}
         <tr>
@@ -70,15 +57,48 @@
             <small>{{ project.driver|default('') }}</small>
           </td>
           <td>{{ project.ops|default(project.score|default('')) }}</td>
-          <td>{{ project.confidence|default(project.confidence_score|default('')) }}</td>
           <td>{{ project.need_by|default('') }}</td>
           <td><a class="table-link" href="{{ url_for('phase2.project', project_id=project.id) }}">Open CTI</a></td>
         </tr>
       {% else %}
-        <tr><td colspan="9" class="empty-state">No CTIs have been saved yet. <a href="{{ url_for('main.new_cti') }}">Create the first record.</a></td></tr>
+        <tr><td colspan="8" class="empty-state">No CTIs have been saved yet.
+          {% if current_user.is_authenticated and current_user.role in ('admin', 'program_manager') %}
+            <a href="{{ url_for('main.new_cti') }}">Create the first record.</a>
+          {% endif %}
+        </td></tr>
       {% endfor %}
       </tbody>
     </table>
+  </div>
+  <div class="portfolio-card-list" aria-label="Portfolio records">
+    {% for project in projects|default([]) %}
+      {% set qualification = project.qualification|default(project.qualification_code|default('D')) %}
+      <article class="portfolio-card">
+        <div class="portfolio-card-heading">
+          <span class="tier tier-{{ qualification|lower }}">{{ qualification }}</span>
+          <span class="portfolio-card-rank">Rank {{ project.company_rank|default(project.rank|default(loop.index)) }}</span>
+        </div>
+        <h3>
+          <a class="table-link" href="{{ url_for('phase2.project', project_id=project.id) }}">
+            {{ project.title|default('Untitled CTI') }}
+          </a>
+        </h3>
+        {% if project.driver %}<p class="portfolio-card-driver">{{ project.driver }}</p>{% endif %}
+        <dl class="portfolio-card-details">
+          <div><dt>Program</dt><dd>{{ project.program|default('Unassigned') }}</dd></div>
+          <div><dt>Lifecycle</dt><dd>{{ lifecycle_phase_labels.get(project.lifecycle_phase, project.lifecycle_phase or 'Phase 1') }}</dd></div>
+          <div><dt>OPS</dt><dd>{{ project.ops|default(project.score|default('—')) }}</dd></div>
+          <div><dt>Need by</dt><dd>{{ project.need_by|default('—') }}</dd></div>
+        </dl>
+        <a class="portfolio-card-link" href="{{ url_for('phase2.project', project_id=project.id) }}">Open CTI</a>
+      </article>
+    {% else %}
+      <p class="empty-state portfolio-card-empty">No CTIs have been saved yet.
+        {% if current_user.is_authenticated and current_user.role in ('admin', 'program_manager') %}
+          <a href="{{ url_for('main.new_cti') }}">Create the first record.</a>
+        {% endif %}
+      </p>
+    {% endfor %}
   </div>
 </section>
 </div>

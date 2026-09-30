@@ -26,6 +26,7 @@ from .exporting import csv_response
 from .portfolio import dashboard_view, models_view, resources_view
 from .ranking import ranked_projects
 from auth import assert_can_manage_project, assert_can_manage_program, manager_required
+from scoring import FACTOR_METHODS
 
 phase2_bp = Blueprint(
     "phase2",
@@ -37,10 +38,28 @@ phase2_bp = Blueprint(
 
 @phase2_bp.get("/resources")
 def resources():
-    selected_department = request.args.get("department", "").strip()
+    selected_departments = list(dict.fromkeys(
+        department.strip()
+        for department in request.args.getlist("department")
+        if department.strip()
+    ))
+    context = resources_view(selected_departments)
+    department_toggle_urls = {}
+    for department in context["departments"]:
+        name = department["department"]
+        if name in selected_departments:
+            toggled = [item for item in selected_departments if item != name]
+        else:
+            toggled = [*selected_departments, name]
+        department_toggle_urls[name] = (
+            url_for("phase2.resources", department=toggled)
+            if toggled
+            else url_for("phase2.resources")
+        )
     return render_template(
         "phase2/resources.html",
-        **resources_view(selected_department),
+        **context,
+        department_toggle_urls=department_toggle_urls,
     )
 @phase2_bp.get("/models")
 def models():
@@ -168,6 +187,7 @@ def project(project_id):
 
         project=item,
         lifecycle_phase_labels=LIFECYCLE_PHASE_LABELS,
+        factor_methods=FACTOR_METHODS,
 
         review_reasons=
             review_reasons(

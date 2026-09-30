@@ -10,7 +10,7 @@
   <article class="metric-card"><span>Qualification</span><strong>{{ qualification.code }}</strong><small>{{ qualification.label if qualification.label is defined else '' }}</small></article>
   <article class="metric-card"><span>Priority tier</span><strong>{{ tier }}</strong></article>
   <article class="metric-card"><span>Objective score</span><strong>{{ '%.1f'|format(scoring.ops|float) }}</strong></article>
-  <article class="metric-card"><span>Confidence</span><strong>{{ confidence.score if confidence.score is defined else confidence }}</strong></article>
+  <article class="metric-card"><span>Data completeness</span><strong>{{ confidence.score if confidence.score is defined else confidence }}</strong></article>
   <article class="metric-card"><span>Score data quality</span><strong>{{ scoring.data_quality }}</strong><small>Model {{ scoring.model_version }}</small></article>
 </section>
 
@@ -39,14 +39,24 @@
 </section>
 
 <section class="panel">
-  <h2>Objective score breakdown</h2>
+  <h2>Where the objective score comes from</h2>
+  <p>Each factor is scored from 0 to 100. Its contribution is calculated as <strong>factor score × factor weight</strong>. The final OPS is the sum of all six contributions. Missing inputs use the scoring defaults and are listed separately above. Qualification is calculated separately and is not added to the OPS.</p>
   <div class="json-grid">
     {% for factor in scoring.factors.values() %}
-    <div>
+    <article class="score-card">
       <span>{{ factor.label }}</span>
-      <strong>{{ '%.1f'|format(factor.score|float) }}</strong>
-      <small>{{ (factor.weight * 100)|round(0)|int }}% weight · {{ '%.1f'|format(factor.contribution|float) }} contribution</small>
-    </div>
+      <strong>{{ '%.1f'|format(factor.score|float) }} / 100</strong>
+      <small>{{ (factor.weight * 100)|round(0)|int }}% weight</small>
+      <small class="score-contribution">{{ '%.2f'|format(factor.score|float) }} × {{ (factor.weight * 100)|round(0)|int }}% = {{ '%.2f'|format(factor.contribution|float) }} OPS points</small>
+      <details class="score-method">
+        <summary>How this factor is scored</summary>
+        <p>{{ factor.method }}</p>
+        {% if factor.details %}
+          <p><strong>Inputs used</strong></p>
+          <ul class="clean-list">{% for detail in factor.details %}<li>{{ detail }}</li>{% endfor %}</ul>
+        {% endif %}
+      </details>
+    </article>
     {% endfor %}
   </div>
 </section>

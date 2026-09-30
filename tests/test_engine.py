@@ -59,5 +59,20 @@ class EngineTests(unittest.TestCase):
         self.assertNotIn("five_year_npv", zero_result["factors"]["financial"]["missing_inputs"])
         self.assertTrue(zero_result["factors"]["financial"]["complete"])
 
+    def test_score_factors_include_plain_language_methods_without_changing_weights(self):
+        result = calculate_all_scores({})
+        factors = result["factors"]
+        self.assertIn("60% time-to-need", factors["urgency"]["method"])
+        self.assertIn("prevented deliveries", factors["operational"]["method"])
+        self.assertIn("$500,000", factors["financial"]["method"])
+        self.assertEqual(
+            round(sum(factor["weight"] for factor in factors.values()), 10),
+            1,
+        )
+        self.assertEqual(
+            result["ops"],
+            round(sum(factor["contribution"] for factor in factors.values()), 2),
+        )
+
 if __name__ == "__main__":
     unittest.main()

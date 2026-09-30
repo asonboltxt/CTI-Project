@@ -780,6 +780,31 @@ def projects_by_department(department):
         return [dict(row) for row in rows]
 
 
+def projects_by_departments(departments):
+    selected = list(dict.fromkeys(departments))
+    if not selected:
+        return fetch_projects_with_departments()
+
+    placeholders = ", ".join("?" for _ in selected)
+    with connection() as conn:
+        rows = conn.execute(
+            f"""
+            SELECT p.*
+            FROM cti_projects p
+            JOIN cti_departments d
+              ON p.id = d.project_id
+            WHERE d.department IN ({placeholders})
+              AND p.archived = 0
+            GROUP BY p.id
+            HAVING COUNT(DISTINCT d.department) = ?
+            ORDER BY p.id DESC
+            """,
+            (*selected, len(selected)),
+        ).fetchall()
+
+        return [dict(row) for row in rows]
+
+
 def fetch_models():
     with connection() as conn:
         rows = conn.execute(

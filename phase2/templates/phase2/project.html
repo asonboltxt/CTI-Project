@@ -55,7 +55,7 @@
   </article>
 
   <article class="metric-card">
-    <span>Confidence</span>
+    <span>Data completeness</span>
     <strong>
       {% if confidence is mapping %}
         {{ confidence.get('score', 'Not available') }}{% if confidence.get('score') is not none %}%{% endif %}
@@ -139,6 +139,10 @@
 
 <section id="scoring" class="panel">
   <h2>Scoring and qualification</h2>
+  <p>Each factor is scored from 0 to 100. Its contribution is <strong>factor score × factor weight</strong>; the final OPS is the sum of the contributions. Missing inputs use the scoring defaults and are identified in the score data quality section. Qualification is calculated separately and is not added to the OPS.</p>
+  {% if scoring is mapping and scoring.get('data_quality') %}
+    <p><strong>Score data quality:</strong> {{ scoring.get('data_quality') }}{% if scoring.get('missing_inputs') %} · Missing inputs: {{ scoring.get('missing_inputs')|map('replace', '_', ' ')|join(', ') }}{% endif %}</p>
+  {% endif %}
 
   {% if factors %}
     <div class="json-grid">
@@ -154,21 +158,34 @@
 
           <strong>
             {% if factor is mapping %}
-              {{ factor.get('score', 'Not available') }}
+              {{ factor.get('score', 'Not available') }} / 100
             {% else %}
               {{ factor }}
             {% endif %}
           </strong>
 
           {% if factor is mapping and factor.get('weight') is not none %}
-            <small>Weight: {{ factor.get('weight') }}</small>
+            <small>Factor weight: {{ (factor.get('weight') * 100)|round(0)|int }}%</small>
           {% endif %}
 
           {% if factor is mapping and factor.get('contribution') is not none %}
-            <small>Contribution: {{ factor.get('contribution') }}</small>
+            <small>
+              {{ '%.2f'|format((factor.get('score') or 0)|float) }} x
+              {{ ((factor.get('weight') or 0) * 100)|round(0)|int }}% =
+              {{ '%.2f'|format(factor.get('contribution')|float) }} OPS points
+            </small>
+          {% endif %}
+
+          {% set method = factor.get('method', factor_methods.get(factor_key)) if factor is mapping else none %}
+          {% if method %}
+            <details class="score-method">
+              <summary>How this factor is scored</summary>
+              <p>{{ method }}</p>
+            </details>
           {% endif %}
 
           {% if factor is mapping and factor.get('details', []) %}
+              <p class="score-inputs-label">Calculation from this record</p>
             <ul class="clean-list">
               {% for detail in factor.get('details', []) %}
                 <li>{{ detail }}</li>
@@ -221,7 +238,7 @@
   </dl>
 
   {% if confidence is mapping and confidence.get('missing', []) %}
-    <h3>Missing confidence inputs</h3>
+    <h3>Inputs needed for a complete record</h3>
     <ul class="clean-list">
       {% for item in confidence.get('missing', []) %}
         <li>{{ item }}</li>
@@ -230,7 +247,7 @@
   {% endif %}
 
   {% if confidence is mapping and confidence.get('warnings', []) %}
-    <h3>Confidence warnings</h3>
+    <h3>Data completeness warnings</h3>
     <ul class="clean-list">
       {% for warning in confidence.get('warnings', []) %}
         <li>{{ warning }}</li>

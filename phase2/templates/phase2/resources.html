@@ -7,26 +7,26 @@
     <div>
         <p class="eyebrow">RESOURCE PARTICIPATION</p>
         <h1>Departments and Ranked CTIs</h1>
-        <p>Select a department to view every active CTI that requires that function.</p>
+        <p>Select one or more departments to find active CTIs that require every selected function.</p>
     </div>
 
-    {% if selected_department %}
+    {% if selected_departments %}
     <a class="button button-secondary" href="{{ url_for('phase2.resources') }}">
-        Clear department filter
+        Clear filters
     </a>
     {% endif %}
 </section>
 
-<section class="program-card-grid" aria-label="Departments">
+<section class="program-card-grid resource-filter-grid" aria-label="Filter by department">
     {% for department in departments %}
     <a
-        class="program-card{% if selected_department == department.department %} is-active{% endif %}"
-        href="{{ url_for('phase2.resources', department=department.department) }}"
+        class="program-card resource-filter-card{% if department.department in selected_departments %} is-active{% endif %}"
+        href="{{ department_toggle_urls[department.department] }}"
+        {% if department.department in selected_departments %}aria-pressed="true"{% endif %}
     >
-        <span class="program-card-label">Department</span>
         <strong>{{ department.department }}</strong>
         <small>{{ department.ctis }} CTI{% if department.ctis != 1 %}s{% endif %}</small>
-        <span class="program-card-action">View ranked list →</span>
+        <span class="program-card-action">{% if department.department in selected_departments %}Selected{% else %}Select{% endif %}</span>
     </a>
     {% else %}
     <article class="panel program-empty-state">
@@ -36,39 +36,18 @@
     {% endfor %}
 </section>
 
-{% if departments %}
-<section class="panel portfolio-filter-panel">
-    <form method="get" action="{{ url_for('phase2.resources') }}" class="portfolio-filter-form">
-        <label class="field">
-            <span>Filter ranked list by department</span>
-            <select name="department" onchange="this.form.submit()">
-                <option value="">All departments</option>
-                {% for department in departments %}
-                <option value="{{ department.department }}"{% if selected_department == department.department %} selected{% endif %}>
-                    {{ department.department }} ({{ department.ctis }})
-                </option>
-                {% endfor %}
-            </select>
-        </label>
-
-        <noscript>
-            <button class="button button-primary" type="submit">Apply filter</button>
-        </noscript>
-    </form>
-</section>
-{% endif %}
-
 <section class="panel table-panel">
     <div class="table-toolbar">
         <div>
             <p class="eyebrow">RANKED PORTFOLIO</p>
             <h2>
-                {% if selected_department %}
-                    CTIs involving {{ selected_department }}
+                {% if selected_departments %}
+                    CTIs involving all selected departments
                 {% else %}
                     All CTIs with resource participation
                 {% endif %}
             </h2>
+            {% if selected_departments %}<p>Selected: {{ selected_departments|join(', ') }}</p>{% endif %}
             <p>{{ projects|length }} active CTI{% if projects|length != 1 %}s{% endif %}</p>
         </div>
     </div>
@@ -111,8 +90,8 @@
                 {% else %}
                 <tr>
                     <td class="empty-state" colspan="8">
-                        {% if selected_department %}
-                            No active CTIs involve this department.
+                        {% if selected_departments %}
+                            No active CTIs involve every selected department.
                         {% else %}
                             No CTIs have resource participation stored yet.
                         {% endif %}
